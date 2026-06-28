@@ -1,0 +1,91 @@
+## ============================================================
+##  ExcelGitDiffViewer  -  .gitignore (.NET / WPF)
+## ============================================================
+
+## ---- Build results ----
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+artifacts/
+[Pp]ublish/
+*.binlog
+
+## ---- Visual Studio ----
+.vs/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.userprefs
+*.svclog
+*.VC.db
+*.VC.VC.opendb
+
+## ---- NuGet ----
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+project.lock.json
+project.assets.json
+*.nuget.props
+*.nuget.targets
+
+## ---- Test results ----
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+BenchmarkDotNet.Artifacts/
+
+## ---- Rider / ReSharper ----
+.idea/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+## ---- VS Code ----
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## ---- Velopack / 配布 (Phase 3) ----
+Releases/
+*.msix
+*.msixbundle
+
+## ---- ログ / 一時ファイル ----
+*.log
+*.tmp
+*.cache
+*.bak
+*~
+
+## ---- OS ----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+## ============================================================
+##  注意:
+##  samples/ 配下の .xls / .xlsm / .xlsx はテスト用フィクスチャ
+##  のため、Excel ファイルをブランケットで除外していません。
+##  個人作業用の一時 Excel を除外したい場合は ~$*.xlsx を追加。
+## ============================================================
+~$*.xls
+~$*.xlsx
+~$*.xlsm

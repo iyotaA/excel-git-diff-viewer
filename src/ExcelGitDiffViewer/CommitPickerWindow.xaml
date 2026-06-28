@@ -1,0 +1,47 @@
+<Window x:Class="ExcelGitDiffViewer.CommitPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Git コミットを選択" Height="440" Width="760"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" x:Name="FileLabel" FontWeight="Bold" Foreground="#0E4A2B"
+                   TextTrimming="CharacterEllipsis" Margin="0,0,0,4" />
+        <TextBlock Grid.Row="1" Text="比較する2つのリビジョンを選択してください（左：変更前 / 右：変更後）。"
+                   Foreground="#5C6E64" Margin="0,0,0,10" />
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="変更前（左）" FontWeight="Bold"
+                       Foreground="#9A2C28" Margin="0,0,0,4" />
+            <ListBox Grid.Row="1" Grid.Column="0" x:Name="LeftList"
+                     FontFamily="Consolas, Yu Gothic UI" />
+
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="変更後（右）" FontWeight="Bold"
+                       Foreground="#1B6035" Margin="0,0,0,4" />
+            <ListBox Grid.Row="1" Grid.Column="2" x:Name="RightList"
+                     FontFamily="Consolas, Yu Gothic UI" />
+        </Grid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="比較" Width="96" Height="30" Margin="0,0,8,0"
+                    IsDefault="True" Click="OnCompareClick" />
+            <Button Content="キャンセル" Width="96" Height="30" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

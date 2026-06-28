@@ -1,0 +1,610 @@
+<title>Excel Git Diff Viewer 仕様提案書</title>
+<meta name="description" content="ExcelのGit差分を可視化するWindowsデスクトップアプリの仕様提案書（技術検証を反映した改訂版）">
+<style>
+  :root{
+    --ground:#F6F9F7;
+    --surface:#FFFFFF;
+    --ink:#17231D;
+    --muted:#5C6E64;
+    --faint:#84978B;
+    --line:#E4EAE5;
+    --line-strong:#CCD8CF;
+    --accent:#217346;
+    --accent-deep:#0E4A2B;
+    --accent-tint:#E9F2EC;
+    --add-bg:#E6F3EA; --add-bd:#3C9D5E; --add-ink:#1B6035;
+    --del-bg:#FBEAEB; --del-bd:#D26B67; --del-ink:#9A2C28;
+    --chg-bg:#FCF4D8; --chg-bd:#D7B134; --chg-ink:#876811;
+    --radius:12px;
+    --radius-sm:7px;
+    --maxw:900px;
+    --mono:"Cascadia Code","Cascadia Mono","Consolas","SFMono-Regular",ui-monospace,monospace;
+    --sans:"Segoe UI","Yu Gothic UI","Hiragino Kaku Gothic ProN","Hiragino Sans","Meiryo",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:16.5px;
+    line-height:1.85;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  .page{
+    max-width:var(--maxw);
+    margin:0 auto;
+    padding:clamp(28px,5vw,64px) clamp(18px,5vw,56px) 96px;
+  }
+
+  /* ---- header ---- */
+  .masthead{
+    border-bottom:2px solid var(--accent);
+    padding-bottom:28px;
+    margin-bottom:8px;
+  }
+  .eyebrow{
+    font-size:12.5px;
+    font-weight:700;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .eyebrow .rev{
+    color:var(--accent-deep);
+    background:var(--accent-tint);
+    border:1px solid var(--line-strong);
+    padding:2px 10px;
+    border-radius:100px;
+    letter-spacing:.08em;
+  }
+  h1{
+    font-size:clamp(2rem,5vw,2.9rem);
+    line-height:1.12;
+    font-weight:800;
+    letter-spacing:-.01em;
+    margin:0 0 16px;
+    color:var(--accent-deep);
+    text-wrap:balance;
+  }
+  .lead{
+    font-size:clamp(1.02rem,2.4vw,1.18rem);
+    color:var(--muted);
+    margin:0;
+    max-width:62ch;
+  }
+  .meta-chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:24px;
+  }
+  .chip{
+    font-size:13px;
+    font-weight:600;
+    padding:5px 12px;
+    border-radius:100px;
+    background:var(--surface);
+    border:1px solid var(--line-strong);
+    color:var(--muted);
+  }
+  .chip strong{color:var(--accent-deep);font-weight:700;}
+
+  /* ---- revision callout ---- */
+  .revbox{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:clamp(20px,3vw,30px);
+    margin:40px 0;
+    box-shadow:0 1px 0 rgba(23,35,29,.03),0 12px 28px -22px rgba(14,74,43,.35);
+  }
+  .revbox h2{
+    margin:0 0 6px;
+    font-size:1.18rem;
+    color:var(--accent-deep);
+  }
+  .revbox .sub{color:var(--muted);font-size:.94rem;margin:0 0 20px;}
+  .swap{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    gap:12px;
+    margin:12px 0;
+  }
+  .swap .tag{
+    font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    display:block;margin-bottom:4px;
+  }
+  .swap .old,.swap .new{
+    border-radius:var(--radius-sm);
+    padding:11px 14px;
+    font-size:.93rem;
+    line-height:1.45;
+    border:1px solid;
+  }
+  .swap .old{background:var(--del-bg);border-color:var(--del-bd);color:var(--del-ink);}
+  .swap .old .tag{color:var(--del-ink);}
+  .swap .old .body{text-decoration:line-through;text-decoration-color:rgba(154,44,40,.5);}
+  .swap .new{background:var(--add-bg);border-color:var(--add-bd);color:var(--add-ink);}
+  .swap .new .tag{color:var(--add-ink);}
+  .swap .arrow{color:var(--faint);font-size:1.25rem;line-height:1;}
+  .reasons{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:9px;}
+  .reasons li{position:relative;padding-left:26px;color:var(--ink);font-size:.96rem;}
+  .reasons li::before{
+    content:"";position:absolute;left:4px;top:.62em;
+    width:9px;height:9px;border-radius:50%;
+    background:var(--accent);
+  }
+
+  /* ---- toc ---- */
+  nav.toc{
+    margin:36px 0 8px;
+    padding:18px 22px;
+    background:var(--accent-tint);
+    border:1px solid var(--line-strong);
+    border-radius:var(--radius);
+  }
+  nav.toc .label{
+    font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-deep);margin:0 0 12px;
+  }
+  nav.toc ol{
+    margin:0;padding:0;list-style:none;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 22px;
+    counter-reset:toc;
+  }
+  nav.toc li{counter-increment:toc;}
+  nav.toc a{
+    color:var(--ink);text-decoration:none;font-size:.93rem;
+    display:flex;gap:9px;padding:3px 0;border-radius:4px;
+  }
+  nav.toc a::before{
+    content:"§" counter(toc);
+    color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;
+    min-width:1.9em;
+  }
+  nav.toc a:hover{color:var(--accent-deep);}
+
+  /* ---- sections ---- */
+  section{
+    margin-top:56px;
+    scroll-margin-top:20px;
+  }
+  h2.sec{
+    font-size:clamp(1.35rem,3vw,1.7rem);
+    font-weight:800;
+    color:var(--accent-deep);
+    margin:0 0 20px;
+    padding-bottom:12px;
+    border-bottom:1px solid var(--line);
+    display:flex;align-items:baseline;gap:14px;
+    text-wrap:balance;
+  }
+  h2.sec .num{
+    font-size:.74em;font-weight:700;color:var(--accent);
+    font-variant-numeric:tabular-nums;
+  }
+  h3{
+    font-size:1.12rem;font-weight:700;color:var(--ink);
+    margin:34px 0 10px;
+  }
+  h3 .h3num{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:.5em;}
+  p{margin:0 0 14px;}
+  .muted{color:var(--muted);}
+  strong{font-weight:700;color:var(--accent-deep);}
+  a{color:var(--accent);}
+  a:focus-visible,nav.toc a:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px;border-radius:3px;
+  }
+
+  ul.body-list{margin:0 0 16px;padding-left:0;list-style:none;display:grid;gap:10px;}
+  ul.body-list>li{position:relative;padding-left:22px;}
+  ul.body-list>li::before{
+    content:"";position:absolute;left:2px;top:.72em;width:7px;height:7px;
+    border-radius:2px;background:var(--accent);
+  }
+  ul.body-list ul{margin:8px 0 2px;padding-left:18px;list-style:none;display:grid;gap:6px;}
+  ul.body-list ul li{position:relative;padding-left:18px;color:var(--muted);font-size:.95rem;}
+  ul.body-list ul li::before{
+    content:"";position:absolute;left:2px;top:.7em;width:5px;height:5px;
+    border-radius:50%;background:var(--line-strong);
+  }
+
+  code{
+    font-family:var(--mono);
+    font-size:.86em;
+    background:var(--accent-tint);
+    color:var(--accent-deep);
+    padding:1px 6px;border-radius:5px;
+    border:1px solid var(--line);
+    word-break:break-word;
+  }
+
+  /* ---- code blocks / ascii ---- */
+  .codewrap{
+    overflow-x:auto;
+    background:#11201A;
+    border:1px solid #1f3a2d;
+    border-radius:var(--radius);
+    margin:18px 0 22px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .codewrap .head{
+    display:flex;align-items:center;gap:8px;
+    padding:9px 16px;border-bottom:1px solid #1f3a2d;
+    font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:#7fb795;
+  }
+  .codewrap pre{
+    margin:0;padding:16px 18px;
+    font-family:var(--mono);font-size:13px;line-height:1.65;
+    color:#d7e6dc;white-space:pre;
+  }
+  .codewrap pre .c{color:#7c9b88;}      /* comment */
+  .codewrap pre .k{color:#8fd3a6;}      /* key/keyword */
+  .codewrap pre .s{color:#e6c98a;}      /* string/value */
+
+  /* ---- tables ---- */
+  .table-wrap{
+    overflow-x:auto;margin:18px 0 24px;
+    border:1px solid var(--line);border-radius:var(--radius);
+    -webkit-overflow-scrolling:touch;
+  }
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:.93rem;}
+  thead th{
+    background:var(--accent-tint);color:var(--accent-deep);
+    text-align:left;font-weight:700;
+    padding:11px 16px;border-bottom:1px solid var(--line-strong);
+    white-space:nowrap;
+  }
+  tbody td{padding:11px 16px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:nth-child(even){background:#FAFCFA;}
+  td .n{font-variant-numeric:tabular-nums;}
+
+  /* ---- callouts ---- */
+  .note{
+    border-left:3px solid var(--accent);
+    background:var(--accent-tint);
+    padding:12px 16px;border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+    margin:16px 0;font-size:.94rem;color:var(--ink);
+  }
+  .note.warn{border-left-color:var(--chg-bd);background:var(--chg-bg);color:var(--chg-ink);}
+  .note .nt{font-weight:700;letter-spacing:.04em;display:block;margin-bottom:3px;}
+
+  .diffline{
+    font-family:var(--mono);font-size:.9rem;
+    border-radius:var(--radius-sm);overflow:hidden;
+    border:1px solid var(--line);margin:12px 0;
+  }
+  .diffline div{padding:6px 14px;}
+  .diffline .d{background:var(--del-bg);color:var(--del-ink);}
+  .diffline .a{background:var(--add-bg);color:var(--add-ink);}
+  .hl{background:var(--chg-bg);border-bottom:2px solid var(--chg-bd);padding:0 3px;border-radius:3px;}
+
+  /* ---- phases ---- */
+  .phases{display:grid;gap:14px;margin:18px 0 8px;}
+  .phase{
+    display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;
+    background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);padding:18px 20px;
+  }
+  .phase .badge{
+    font-weight:800;font-size:.8rem;letter-spacing:.04em;
+    color:#fff;background:var(--accent);
+    padding:6px 12px;border-radius:100px;white-space:nowrap;
+    align-self:start;
+  }
+  .phase.p2 .badge{background:var(--accent-deep);}
+  .phase.p3 .badge{background:var(--muted);}
+  .phase h4{margin:0 0 6px;font-size:1.02rem;color:var(--accent-deep);}
+  .phase p{margin:0;font-size:.94rem;color:var(--muted);}
+
+  hr.div{border:none;border-top:1px solid var(--line);margin:0;}
+  footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);
+    color:var(--faint);font-size:.85rem;}
+
+  @media (max-width:560px){
+    .swap{grid-template-columns:1fr;}
+    .swap .arrow{transform:rotate(90deg);justify-self:start;}
+    h2.sec{flex-wrap:wrap;gap:6px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important;}
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="eyebrow">仕様提案書 <span class="rev">REV.2 ・ 技術検証反映版</span></p>
+    <h1>Excel Git Diff Viewer</h1>
+    <p class="lead">Excelファイルの「値」「数式」「VBAマクロ」を抽出し、Gitのコミット履歴やワークツリー間の差分を、人間が見やすい形で視覚化・比較するWindowsデスクトップアプリケーション。</p>
+    <div class="meta-chips">
+      <span class="chip"><strong>対象形式</strong>　.xls / .xlsx / .xlsm</span>
+      <span class="chip"><strong>基盤</strong>　.NET 8 / WPF</span>
+      <span class="chip"><strong>統合</strong>　git difftool</span>
+      <span class="chip"><strong>配布</strong>　Velopack 自動更新</span>
+    </div>
+  </header>
+
+  <div class="revbox">
+    <h2>改訂版で変えたこと</h2>
+    <p class="sub">初版の技術選定を実ライブラリの機能に照らして検証し、成立しない組み合わせを差し替えました。</p>
+
+    <div class="swap">
+      <div class="old"><span class="tag">初版</span><span class="body">ExcelDataReader ＋ ClosedXML で「.xls対応＋数式抽出」</span></div>
+      <div class="arrow">➜</div>
+      <div class="new"><span class="tag">改訂</span><span class="body">NPOI に一本化（.xls/.xlsx/.xlsm ＋ 値＋数式）</span></div>
+    </div>
+    <div class="swap">
+      <div class="old"><span class="tag">初版</span><span class="body">VBA抽出に olefile（Python）を併用</span></div>
+      <div class="arrow">➜</div>
+      <div class="new"><span class="tag">改訂</span><span class="body">C#ネイティブ（OpenMcdf＋MS-OVBA展開）に統一</span></div>
+    </div>
+
+    <ul class="reasons">
+      <li>行・列の挿入/削除検知に <strong>行アライメント方式</strong> を明記（同一座標比較だけでは全行ズレ誤検知が起きるため）</li>
+      <li>一時ファイルの形式判定を <strong>マジックバイト方式</strong> に（git difftool が渡す一時ファイルは拡張子が失われうるため）</li>
+      <li>配布・自動更新（<strong>Velopack</strong>）とコード署名方針を仕様として追加</li>
+    </ul>
+  </div>
+
+  <nav class="toc" aria-label="目次">
+    <p class="label">目次</p>
+    <ol>
+      <li><a href="#s1">プロジェクト概要</a></li>
+      <li><a href="#s2">システムアーキテクチャ・技術スタック</a></li>
+      <li><a href="#s3">機能要件</a></li>
+      <li><a href="#s4">画面設計イメージ</a></li>
+      <li><a href="#s5">git difftool 設定仕様</a></li>
+      <li><a href="#s6">開発フェーズ・ロードマップ</a></li>
+      <li><a href="#s7">想定リスクと対策</a></li>
+      <li><a href="#s8">配布・自動更新仕様</a></li>
+      <li><a href="#s9">補足</a></li>
+    </ol>
+  </nav>
+
+  <section id="s1">
+    <h2 class="sec"><span class="num">§1</span>プロジェクト概要</h2>
+    <h3><span class="h3num">1.1</span>開発の背景と目的</h3>
+    <p>Excelファイルはビジネスや開発の現場で広く利用されていますが、バイナリ形式であるため、Git標準の差分表示（<code>git diff</code>）では「Binary files differ」としか表示されず、具体的な変更箇所の追跡が困難です。本プロジェクトでは、Excel内の「値」「数式」「VBAマクロコード」を自動抽出し、Gitのコミット履歴やワークツリー間での差分を視覚的・直感的に比較できるWindowsアプリケーションの開発を目的とします。</p>
+    <h3><span class="h3num">1.2</span>キーコンセプト</h3>
+    <ul class="body-list">
+      <li><strong>人間にとっての見やすさ</strong>　表形式（グリッド）での直感的な左右比較（Side-by-Side）。</li>
+      <li><strong>エンジニアフレンドリー</strong>　<code>git difftool</code> としてシームレスに統合し、コマンドラインから即座に起動可能。</li>
+      <li><strong>完全な追跡性</strong>　表面的な値だけでなく、裏側の「数式」や「VBAマクロ」の変更も逃さず検知。</li>
+      <li><strong>配布のしやすさ</strong>　受け取った人が説明書なしでセットアップ・利用でき、更新も自動で届く。</li>
+    </ul>
+  </section>
+
+  <section id="s2">
+    <h2 class="sec"><span class="num">§2</span>システムアーキテクチャ・技術スタック</h2>
+    <p>Windows環境に最適化され、豊富なライブラリと高速なUI描画が可能な <strong>C# / .NET 8 (WPF)</strong> をベースに構築します。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>構成要素</th><th>選定技術</th><th>採用理由</th></tr></thead>
+        <tbody>
+          <tr><td>OS / 基盤</td><td>Windows 10 / 11 (.NET 8)</td><td>長期サポート（LTS）環境によるパフォーマンス向上</td></tr>
+          <tr><td>UIフレームワーク</td><td>WPF</td><td>大容量グリッドの柔軟なカスタマイズ、タブ切り替えUIの容易さ</td></tr>
+          <tr><td>Excel解析（値・数式）</td><td><strong>NPOI</strong></td><td>.xls / .xlsx / .xlsm を単一APIで読み込み、値と数式文字列の両方を取得可能</td></tr>
+          <tr><td>VBAマクロ抽出</td><td><strong>OpenMcdf ＋ MS-OVBA展開</strong>（C#ネイティブ）</td><td>vbaProject.bin からVBAソースを抽出。Python依存を排除し単一バイナリで完結</td></tr>
+          <tr><td>テキスト差分エンジン</td><td><strong>DiffPlex</strong></td><td>VBA・数式の行単位差分（赤/緑表示）の定番。自前実装を回避</td></tr>
+          <tr><td>Git連携</td><td>LibGit2Sharp（又はCLI）</td><td>過去コミットからExcelバイナリを一時的に高速抽出</td></tr>
+          <tr><td>ファイル形式判定</td><td><strong>マジックバイト</strong></td><td>一時ファイルで拡張子が失われても形式を確実に判定</td></tr>
+          <tr><td>配布・自動更新</td><td><strong>Velopack</strong></td><td>インストーラ生成＋差分更新＋リリースノート表示。Squirrel の後継</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3><span class="h3num">2.1</span>ライブラリ選定の補足（初版からの変更理由）</h3>
+    <ul class="body-list">
+      <li><strong>ExcelDataReader を不採用にした理由</strong>　ストリーム型で軽量だが、返すのは数式の<em>計算結果（キャッシュ値）のみ</em>で、数式文字列（<code>=SUM(...)</code>）を取得できない。中核要件「値と数式の分離抽出」を満たせない。</li>
+      <li><strong>ClosedXML を主軸から外した理由</strong>　数式は取得できるが <em>.xls（Excel 2003以前）に非対応</em>（.xlsx/.xlsm 専用）。要件「.xls対応」を満たせない。</li>
+    </ul>
+    <div class="note warn">
+      <span class="nt">結論</span>上記2つの組み合わせでは「.xls の数式比較」が原理的に成立しない（一方は値しか読めず、他方は .xls を開けない）。すべての形式で値・数式を扱える <strong>NPOI への一本化</strong>が最も確実かつシンプル。
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2 class="sec"><span class="num">§3</span>機能要件</h2>
+
+    <h3><span class="h3num">3.1</span>Excelデータ抽出機能</h3>
+    <ul class="body-list">
+      <li><strong>値と数式の分離抽出</strong>　NPOIのセルから、計算結果の値と <code>CellFormula</code>（<code>=SUM(A1:A10)</code> 等）を同時に取得。</li>
+      <li><strong>全形式への対応</strong>　.xlsx / .xlsm に加え、レガシーな .xls も NPOI の単一APIで読み込む。</li>
+      <li><strong>形式判定</strong>　拡張子ではなくファイル先頭のマジックバイトで判定（3.3 参照）。</li>
+      <li><strong>複数シート対応</strong>　全シートをスキャンし、シート単位での比較を可能にする。</li>
+    </ul>
+
+    <h3><span class="h3num">3.2</span>VBAマクロ（.xlsm）差分抽出機能</h3>
+    <ul class="body-list">
+      <li><strong>vbaProject.bin の C#ネイティブ・デコード</strong>
+        <ul>
+          <li>vbaProject.bin は OLE複合ファイル（CFB）で、VBAソースは MS-OVBA 仕様の独自圧縮で格納されている（単純なテキストではない）。</li>
+          <li>OpenMcdf でCFBを開き、VBA/dir と各モジュールストリームを取得 → MS-OVBA 展開でソーステキスト化。</li>
+          <li>標準モジュール／クラスモジュール／Sheet・ThisWorkbook の各ソースを抽出。</li>
+        </ul>
+      </li>
+      <li><strong>テキストベースのモジュール管理</strong>　抽出コードをモジュール名ごとに保持し、DiffPlex の行単位差分に引き渡す。</li>
+      <li><strong>位置づけ</strong>　アプリ随一の難所のため、フェーズ2の後半（2b）に切り出して実装・検証する。</li>
+    </ul>
+
+    <h3><span class="h3num">3.3</span>Git連携・履歴取得機能</h3>
+    <ul class="body-list">
+      <li><strong>過去コミットデータの復元</strong>　2つのコミット（例: <code>HEAD</code> と <code>HEAD~1</code>）のハッシュから、該当Excelバイナリをバックグラウンドで一時復元（LibGit2Sharp）。</li>
+      <li><strong>git difftool 起動引数の解決</strong>　<code>$LOCAL</code>（変更前）と <code>$REMOTE</code>（変更後）を受け取り、比較画面を自動初期化。</li>
+      <li><strong>一時ファイルの形式判定（重要）</strong>　git difftool が渡す一時ファイルは拡張子を保持しない場合がある。先頭のマジックバイトで判定する。</li>
+    </ul>
+    <div class="codewrap">
+      <div class="head">マジックバイト判定</div>
+      <pre>.xlsx / .xlsm （ZIPコンテナ）   →  50 4B 03 04   "PK.."
+.xls           （OLE複合ファイル） →  D0 CF 11 E0 A1 B1 1A E1</pre>
+    </div>
+
+    <h3><span class="h3num">3.4</span>差分アルゴリズム＆視覚化（UI）機能</h3>
+    <ul class="body-list">
+      <li><strong>Side-by-Side 比較画面</strong>　左右分割（左：Older／右：Newer）でスクロールを完全同期。</li>
+      <li><strong>セルレベルの差分ハイライト</strong>　値の変更はセル背景を薄黄、数式の変更はインジケータ＋下部詳細パネルで表示。</li>
+      <li><strong>行・列の挿入/削除（行アライメント方式）</strong>　単純な同一座標比較では、1行挿入された時点で以降の全行がズレ「全セル変更」と誤検知する。行内容のハッシュやキー列を用いた <strong>行アライメント</strong>（LCS / Myers diff の行版）で対応付け、挿入行を薄緑・削除行を薄赤で表示する。</li>
+      <li><strong>VBA Diff 専用タブ</strong>　DiffPlex による行単位の赤/緑ハイライトを表示。</li>
+    </ul>
+    <div class="note"><span class="nt">段階導入</span>MVP〜フェーズ1は「同一座標比較」で割り切り、行アライメントはフェーズ2で導入する。</div>
+    <p class="muted" style="margin-bottom:8px;font-size:.9rem;">数式変更の表示イメージ（下部詳細パネル）:</p>
+    <div class="diffline">
+      <div class="d">− 変更前: =SUM(C1:<span class="hl">C10</span>)</div>
+      <div class="a">+ 変更後: =SUM(C1:<span class="hl">C12</span>)</div>
+    </div>
+
+    <h3><span class="h3num">3.5</span>シート単位の差分検知</h3>
+    <p>ワークブック間でシートの<strong>追加・削除・リネーム</strong>を検知し、シートタブに状態（「追加」「削除」「変更あり」）を表示する。</p>
+  </section>
+
+  <section id="s4">
+    <h2 class="sec"><span class="num">§4</span>画面設計イメージ（UI/UX）</h2>
+    <p>メインウィンドウは「ファイル/コミット選択」「データ・数式／VBA ビュー切替」「下部詳細パネル」の3領域で構成します。</p>
+    <div class="codewrap">
+      <div class="head">画面レイアウト</div>
+      <pre>+------------------------------------------------------------------------------------+
+| [ファイル/コミット選択エリア]  対象: sample.xlsm (HEAD vs ワークツリー)             |
++------------------------------------------------------------------------------------+
+| [表示モード切替]  [■ データ・数式ビュー]  [■ VBAコードビュー (1個の変更)]          |
++------------------------------------------------------------------------------------+
+| 【データ・数式ビュー時】                                                           |
+|  [Sheet1] [Sheet2 (変更あり)] [Sheet3 (追加)]                                      |
+|  (左: HEAD / 変更前)                          (右: ワークツリー / 変更後)          |
+|  +---+---------+------------------+          +---+---------+------------------+    |
+|  | 1 | 総計    | 1500             |          | 1 | 総計    | 1800  [★変更]    |    |
+|  | 2 | 数式    | =SUM(C1:C10)     |          | 2 | 数式    | =SUM(C1:C12)[★]  |    |
+|  +---+---------+------------------+          +---+---------+------------------+    |
++------------------------------------------------------------------------------------+
+| 【下部詳細パネル】 選択セル (B2) の数式差分                                         |
+|   - 変更前: =SUM(C1:C10)        + 変更後: =SUM(C1:C12)                              |
++------------------------------------------------------------------------------------+</pre>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2 class="sec"><span class="num">§5</span>git difftool 設定仕様</h2>
+    <p>ビルドしたバイナリ（<code>ExcelGitDiffViewer.exe</code>）をGit環境に登録する手順です。一度設定すれば、以降は使い慣れたターミナルから呼び出せます。</p>
+    <h3><span class="h3num">5.1</span>.gitconfig への登録例</h3>
+    <div class="codewrap">
+      <div class="head">~/.gitconfig</div>
+      <pre><span class="k">[diff]</span>
+    <span class="k">tool</span> = <span class="s">excel_diff</span>
+<span class="k">[difftool "excel_diff"]</span>
+    <span class="k">path</span> = <span class="s">C:/Program Files/ExcelGitDiffViewer/ExcelGitDiffViewer.exe</span>
+    <span class="c"># $LOCAL（比較元）と $REMOTE（比較先）を引数で渡す</span>
+    <span class="k">cmd</span> = <span class="s">"C:/Program Files/ExcelGitDiffViewer/ExcelGitDiffViewer.exe" "$LOCAL" "$REMOTE"</span>
+<span class="k">[difftool]</span>
+    <span class="k">prompt</span> = <span class="s">false</span></pre>
+    </div>
+    <div class="note"><span class="nt">補足</span>受け取る一時ファイルは拡張子を持たない場合があるため、アプリ側は拡張子に依存せずマジックバイトで形式を判定する（3.3）。ディレクトリ一括差分（<code>git difftool -d</code>）は当面の対象外（将来検討）。</div>
+    <h3><span class="h3num">5.2</span>コマンドラインからの使用イメージ</h3>
+    <div class="codewrap">
+      <div class="head">bash</div>
+      <pre><span class="c"># 特定Excelファイルの最新コミットとの差分を確認</span>
+$ git difftool budget.xlsm
+
+<span class="c"># コミット main と feature-vba 間の sample.xlsm の差分を確認</span>
+$ git difftool main feature-vba -- sample.xlsm</pre>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2 class="sec"><span class="num">§6</span>開発フェーズ・ロードマップ</h2>
+    <p>開発のハードルを下げ確実に完成させるためのスモールステップ計画です。難所（VBA抽出・行アライメント）をフェーズ2内で分離し、リスクを早期に切り分けます。</p>
+    <div class="phases">
+      <div class="phase p1">
+        <span class="badge">Phase 1 ・ MVP</span>
+        <div><h4>最小限のプロトタイプ</h4><p>引数で受けた2つの .xlsx の「値」だけを左右 DataGrid に背景色付きで表示（同一座標比較）。マジックバイト判定と git difftool 連携の土台もここで通す。</p></div>
+      </div>
+      <div class="phase p2">
+        <span class="badge">Phase 2a</span>
+        <div><h4>数式比較 ＋ 行アライメント</h4><p>NPOIで数式文字列を抽出・比較。行アライメントを導入し、行・列の挿入/削除を正しく検知・ハイライト。</p></div>
+      </div>
+      <div class="phase p2">
+        <span class="badge">Phase 2b</span>
+        <div><h4>VBAマクロ比較</h4><p>vbaProject.bin の C#ネイティブ抽出（OpenMcdf＋MS-OVBA展開）。DiffPlex によるVBAコード差分タブの追加。</p></div>
+      </div>
+      <div class="phase p3">
+        <span class="badge">Phase 3</span>
+        <div><h4>パフォーマンス・配布・UX最適化</h4><p>非同期読み込み（async/await）とUI仮想化。Velopackによるインストーラ・自動更新・リリースノート。git config 自動登録スクリプト同梱、コード署名方針の適用。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2 class="sec"><span class="num">§7</span>想定されるリスクと対策</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>リスク</th><th>対策</th></tr></thead>
+        <tbody>
+          <tr><td>大規模ファイルのメモリ圧迫・性能低下</td><td>NPOIで対象シートのみ読み込み、DataGrid 行仮想化、読み込み・差分計算の非同期化。読み込み方針はNPOIで一貫させる（ExcelDataReaderのストリーム読みは数式が取れず不採用）。</td></tr>
+          <tr><td>行アライメントの計算コスト・精度</td><td>キー列の指定オプションを設け、巨大シートは行ハッシュによるヒューリスティックで対応付けコストを抑える。</td></tr>
+          <tr><td>VBA抽出（OLE/MS-OVBA展開）の難度</td><td>仕様が複雑なためフェーズ2bに切り出し、代表的な .xlsm サンプルで段階的に検証。</td></tr>
+          <tr><td>結合セル・複雑な書式の再現性</td><td>主目的は「データ（値・数式）の差分検知」。罫線やフォント色などの装飾はあえて無視し実装をシンプルに保つ。</td></tr>
+          <tr><td>配布時の SmartScreen 警告</td><td>無署名exeは初回起動で警告が出るため、コード署名証明書の導入か、未署名配布＋初回回避手順の案内かを方針決定（§8）。</td></tr>
+          <tr><td>異常系ファイル</td><td>パスワード保護（暗号化）・破損・空ファイルを検知し、解析不可の旨を明示表示する。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2 class="sec"><span class="num">§8</span>配布・自動更新仕様</h2>
+    <p>初版の「その他要望」（説明書なしで即セットアップ／自動更新通知＋更新／リリースノート表示）を、<strong>Velopack</strong> を用いて以下の仕様として実現します。</p>
+    <ul class="body-list">
+      <li><strong>インストール</strong>　Velopack が生成する <code>Setup.exe</code> をダブルクリックするだけで完了（説明書不要）。</li>
+      <li><strong>自動更新チェック</strong>　起動時にバックグラウンドで更新を確認。更新元は GitHub Releases または社内ファイルサーバ/共有フォルダを選択可能。</li>
+      <li><strong>更新通知＋ワンクリック更新</strong>　更新があれば通知し、差分（デルタ）ダウンロードで適用。</li>
+      <li><strong>リリースノートのモーダル表示</strong>　更新後（または初回起動時）に、Releases本文または同梱 CHANGELOG からノートを表示。</li>
+      <li><strong>コード署名方針（要決定）</strong>　証明書を導入して警告を出さない構成を推奨。コスト判断で未署名とする場合は初回の SmartScreen 回避手順を案内する。</li>
+    </ul>
+  </section>
+
+  <section id="s9">
+    <h2 class="sec"><span class="num">§9</span>補足</h2>
+
+    <h3><span class="h3num">9.1</span>対象外スコープ（明示）</h3>
+    <ul class="body-list">
+      <li>罫線・フォント色・セル書式などの装飾の差分</li>
+      <li>チャート／ピボットテーブル／条件付き書式の差分</li>
+      <li>暗号化（パスワード保護）ファイルの中身解析</li>
+      <li><code>git difftool -d</code> によるディレクトリ一括差分（将来検討）</li>
+    </ul>
+
+    <h3><span class="h3num">9.2</span>主要ライブラリとライセンス（配布前に最終確認）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ライブラリ</th><th>ライセンス</th><th>備考</th></tr></thead>
+        <tbody>
+          <tr><td>NPOI</td><td>Apache-2.0</td><td>商用配布可</td></tr>
+          <tr><td>LibGit2Sharp</td><td>MIT</td><td>商用配布可</td></tr>
+          <tr><td>DiffPlex</td><td>Apache-2.0</td><td>商用配布可</td></tr>
+          <tr><td>Velopack</td><td>MIT</td><td>商用配布可</td></tr>
+          <tr><td>OpenMcdf</td><td>MPL-2.0</td><td>ファイル単位コピーレフト。改変せず利用なら商用配布可（要確認）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="font-size:.92rem;">いずれも商用配布可能だが、配布物にライセンス表記を同梱すること。</p>
+
+    <h3><span class="h3num">9.3</span>テスト戦略</h3>
+    <ul class="body-list">
+      <li>差分エンジン（セル比較・行アライメント・VBA差分）は単体テストの価値が高い。</li>
+      <li>比較用の小さなサンプルペア（値変更／数式変更／行挿入・削除／シート追加・削除／VBA変更）を .xlsx / .xls / .xlsm で用意し、回帰テスト化する。</li>
+    </ul>
+  </section>
+
+  <footer>
+    Excel Git Diff Viewer（仮称）仕様提案書 ・ REV.2（技術検証反映版）
+  </footer>
+
+</div>

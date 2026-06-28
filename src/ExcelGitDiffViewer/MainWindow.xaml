@@ -1,0 +1,299 @@
+<Window x:Class="ExcelGitDiffViewer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:ExcelGitDiffViewer.Converters"
+        Title="Excel Git Diff Viewer" Height="720" Width="1180"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <conv:DiffKindToBrushConverter x:Key="DiffBrush" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- セル余白を 0 にして、テンプレート内 Border が背景色をセル全面に塗れるようにする -->
+        <Style x:Key="DiffCellStyle" TargetType="DataGridCell">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <ContentPresenter />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 左右共通の DataGrid 体裁。列は code-behind で動的生成する -->
+        <Style x:Key="DiffGridStyle" TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="CanUserDeleteRows" Value="False" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="SelectionUnit" Value="Cell" />
+            <Setter Property="GridLinesVisibility" Value="All" />
+            <Setter Property="HorizontalGridLinesBrush" Value="#E4EAE5" />
+            <Setter Property="VerticalGridLinesBrush" Value="#E4EAE5" />
+            <Setter Property="EnableColumnVirtualization" Value="True" />
+            <Setter Property="EnableRowVirtualization" Value="True" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+            <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+            <Setter Property="CellStyle" Value="{StaticResource DiffCellStyle}" />
+            <Setter Property="FontFamily" Value="Consolas, Yu Gothic UI, Meiryo" />
+            <Setter Property="ColumnWidth" Value="SizeToCells" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ① ツールバー -->
+        <Border Grid.Row="0" Background="#217346" Padding="10,6">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="ファイルを開く…" Padding="10,3"
+                        Click="OnOpenFilesClick" />
+                <Button DockPanel.Dock="Right" Content="Git から開く…" Padding="10,3" Margin="0,0,6,0"
+                        Click="OnOpenFromGitClick" />
+                <TextBlock Text="Excel Git Diff Viewer" Foreground="White"
+                           FontWeight="Bold" FontSize="14" VerticalAlignment="Center"
+                           Margin="0,0,16,0" />
+                <!-- 表示モード切替（仕様 §4） -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVis}}">
+                    <Button Content="データ・数式ビュー" Padding="10,3" Margin="0,0,6,0"
+                            Click="OnShowDataView" />
+                    <Button Content="VBAコードビュー" Padding="10,3"
+                            IsEnabled="{Binding HasVba}" Click="OnShowVbaView" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ② 対象ファイル情報バー -->
+        <Border Grid.Row="1" Background="#E9F2EC" BorderBrush="#CCD8CF" BorderThickness="0,0,0,1" Padding="12,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="変更前: " FontWeight="Bold" Foreground="#9A2C28" />
+                    <TextBlock Text="{Binding LeftFilePath}" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding LeftFilePath}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="  ⇄  " FontWeight="Bold" Foreground="#5C6E64" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <TextBlock Text="変更後: " FontWeight="Bold" Foreground="#1B6035" />
+                    <TextBlock Text="{Binding RightFilePath}" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding RightFilePath}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ③ コンテンツ領域 -->
+        <Grid Grid.Row="2">
+            <!-- シート選択タブ + 左右 DataGrid（データ・数式ビュー） -->
+            <Grid Visibility="{Binding ShowDataArea, Converter={StaticResource BoolToVis}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- シートタブ（選択用） -->
+                <ListBox Grid.Row="0" BorderThickness="0" Background="#F6F9F7" Padding="4,4,4,0"
+                         ItemsSource="{Binding Sheets}"
+                         SelectedItem="{Binding SelectedSheet, Mode=TwoWay}">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Margin" Value="2,0" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="bd" Background="#FFFFFF" BorderBrush="#CCD8CF"
+                                                BorderThickness="1,1,1,0" CornerRadius="6,6,0,0" Padding="12,6">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="bd" Property="Background" Value="#217346" />
+                                                <Setter Property="TextElement.Foreground" Value="White" />
+                                                <Setter Property="TextElement.FontWeight" Value="Bold" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Header}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- 左右 DataGrid -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <DataGrid x:Name="LeftGrid" Grid.Column="0"
+                              Style="{StaticResource DiffGridStyle}"
+                              ItemsSource="{Binding SelectedSheet.LeftRows}"
+                              ScrollViewer.ScrollChanged="OnGridScrollChanged"
+                              SelectedCellsChanged="OnSelectedCellsChanged" />
+
+                    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                                  Background="#CCD8CF" />
+
+                    <DataGrid x:Name="RightGrid" Grid.Column="2"
+                              Style="{StaticResource DiffGridStyle}"
+                              ItemsSource="{Binding SelectedSheet.RightRows}"
+                              ScrollViewer.ScrollChanged="OnGridScrollChanged"
+                              SelectedCellsChanged="OnSelectedCellsChanged" />
+                </Grid>
+
+            </Grid>
+
+            <!-- VBA コードビュー -->
+            <Grid Visibility="{Binding ShowVbaArea, Converter={StaticResource BoolToVis}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- モジュール一覧 -->
+                <ListBox Grid.Column="0" BorderBrush="#CCD8CF" BorderThickness="0,0,1,0"
+                         ItemsSource="{Binding VbaModules}"
+                         SelectedItem="{Binding SelectedVbaModule, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Header}" Padding="4,3" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- 選択モジュールの行差分 -->
+                <DockPanel Grid.Column="1">
+                    <Border DockPanel.Dock="Top" Background="#E9F2EC" Padding="8,4">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="変更前" FontWeight="Bold" Foreground="#9A2C28" />
+                            <TextBlock Grid.Column="1" Text="変更後" FontWeight="Bold" Foreground="#1B6035" />
+                        </Grid>
+                    </Border>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding SelectedVbaModule.Lines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="38" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="38" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="{Binding LeftNumberDisplay}"
+                                                   Foreground="#84978B" TextAlignment="Right"
+                                                   FontFamily="Consolas" Padding="0,0,6,0" />
+                                        <Border Grid.Column="1"
+                                                Background="{Binding LeftKind, Converter={StaticResource DiffBrush}}">
+                                            <TextBlock Text="{Binding LeftText}" FontFamily="Consolas"
+                                                       TextWrapping="NoWrap" />
+                                        </Border>
+
+                                        <TextBlock Grid.Column="3" Text="{Binding RightNumberDisplay}"
+                                                   Foreground="#84978B" TextAlignment="Right"
+                                                   FontFamily="Consolas" Padding="0,0,6,0" />
+                                        <Border Grid.Column="4"
+                                                Background="{Binding RightKind, Converter={StaticResource DiffBrush}}">
+                                            <TextBlock Text="{Binding RightText}" FontFamily="Consolas"
+                                                       TextWrapping="NoWrap" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Grid>
+
+            <!-- エラー表示 -->
+            <Border Background="#FBEAEB" BorderBrush="#D26B67" BorderThickness="1" CornerRadius="6"
+                    Padding="20" Margin="40" VerticalAlignment="Center" HorizontalAlignment="Center"
+                    MaxWidth="560"
+                    Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="解析できませんでした" FontWeight="Bold" FontSize="15"
+                               Foreground="#9A2C28" Margin="0,0,0,8" />
+                    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Foreground="#9A2C28" />
+                </StackPanel>
+            </Border>
+
+            <!-- 未読み込み時のヒント -->
+            <TextBlock Text="「ファイルを開く…」から、変更前・変更後の Excel を2つ選択してください。"
+                       Foreground="#84978B" VerticalAlignment="Center" HorizontalAlignment="Center"
+                       Visibility="{Binding ShowHint, Converter={StaticResource BoolToVis}}" />
+
+            <!-- 読み込み中オーバーレイ（非同期処理中, 仕様 §7 性能対策） -->
+            <Border Background="#CCFFFFFF"
+                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="220" Height="6"
+                                 Foreground="#217346" Background="#E4EAE5" BorderThickness="0" />
+                    <TextBlock Text="読み込み中…" Foreground="#5C6E64" Margin="0,12,0,0"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ④ 下部詳細パネル（選択セルの値・数式差分, 仕様 §4） -->
+        <Border x:Name="DetailPanel" Grid.Row="3" Background="#FFFFFF"
+                BorderBrush="#CCD8CF" BorderThickness="0,1,0,0" Padding="14,8"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="DetailHeader" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                           FontWeight="Bold" Foreground="#0E4A2B" Margin="0,0,0,6" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="変更前:" Foreground="#9A2C28"
+                           FontWeight="Bold" Margin="0,0,10,0" />
+                <TextBlock x:Name="DetailBeforeLine" Grid.Row="1" Grid.Column="1"
+                           FontFamily="Consolas, Yu Gothic UI" TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="変更後:" Foreground="#1B6035"
+                           FontWeight="Bold" Margin="0,2,10,0" />
+                <TextBlock x:Name="DetailAfterLine" Grid.Row="2" Grid.Column="1"
+                           FontFamily="Consolas, Yu Gothic UI" TextWrapping="Wrap" Margin="0,2,0,0" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

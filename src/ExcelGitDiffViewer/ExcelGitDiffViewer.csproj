@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ExcelGitDiffViewer</RootNamespace>
+    <AssemblyName>ExcelGitDiffViewer</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NPOI" Version="2.7.2" />
+    <PackageReference Include="DiffPlex" Version="1.7.2" />
+    <PackageReference Include="OpenMcdf" Version="3.1.4" />
+    <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- difftool 自動登録スクリプトを出力に同梱（配布物に含める） -->
+    <None Include="..\..\scripts\install-difftool.ps1" Link="install-difftool.ps1"
+          Condition="Exists('..\..\scripts\install-difftool.ps1')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
