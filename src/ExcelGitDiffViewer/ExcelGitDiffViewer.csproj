@@ -9,6 +9,7 @@
     <RootNamespace>ExcelGitDiffViewer</RootNamespace>
     <AssemblyName>ExcelGitDiffViewer</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <Version>0.1.0</Version>
   </PropertyGroup>
 
@@ -18,6 +19,11 @@
     <PackageReference Include="OpenMcdf" Version="3.1.4" />
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
     <PackageReference Include="Velopack" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ウィンドウ (Window.Icon) から pack URI で参照するためリソースに含める -->
+    <Resource Include="Assets\app.ico" />
   </ItemGroup>
 
   <ItemGroup>

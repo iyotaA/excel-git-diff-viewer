@@ -116,7 +116,8 @@ dotnet tool install -g vpk
 dotnet publish src/ExcelGitDiffViewer -c Release -r win-x64 --self-contained -o publish
 
 # 2) インストーラ＋更新パッケージを生成（バージョンは csproj の <Version> と揃える）
-vpk pack --packId ExcelGitDiffViewer --packVersion 1.0.0 --packDir publish --mainExe ExcelGitDiffViewer.exe
+#    --icon で Setup.exe とショートカットのアイコンを指定（アイコンは scripts/build-icon.ps1 で生成）
+vpk pack --packId ExcelGitDiffViewer --packVersion 1.0.0 --packDir publish --mainExe ExcelGitDiffViewer.exe --icon src/ExcelGitDiffViewer/Assets/app.ico
 
 # 3) 生成された Releases/ を GitHub Releases へアップロード（vpk upload github も利用可）
 ```
