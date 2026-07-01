@@ -12,8 +12,8 @@ namespace ExcelGitDiffViewer.Services;
 /// </summary>
 public static class UpdateService
 {
-    // TODO: 配布前に自分のリポジトリURLへ変更すること（例: https://github.com/your-org/ExcelGitDiffViewer）。
-    private const string GithubRepositoryUrl = "https://github.com/your-org/ExcelGitDiffViewer";
+    // 更新元リポジトリ（GitHub Releases）。
+    private const string GithubRepositoryUrl = "https://github.com/iyotaA/excel-git-diff-viewer";
 
     /// <summary>
     /// バックグラウンドで更新を確認し、あればユーザーに通知してワンクリック更新・再起動する。

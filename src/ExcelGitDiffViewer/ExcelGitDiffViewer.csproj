@@ -9,7 +9,7 @@
     <RootNamespace>ExcelGitDiffViewer</RootNamespace>
     <AssemblyName>ExcelGitDiffViewer</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
