@@ -1,7 +1,6 @@
 using System.Windows;
 using ExcelGitDiffViewer.Services;
 using ExcelGitDiffViewer.ViewModels;
-using Microsoft.Win32;
 using Velopack;
 
 namespace ExcelGitDiffViewer;
@@ -28,43 +27,11 @@ public partial class App : Application
             // git difftool 連携: 第1引数=変更前($LOCAL) / 第2引数=変更後($REMOTE)。
             _ = viewModel.LoadAsync(e.Args[0], e.Args[1]);
         }
-        else
-        {
-            // 引数なし起動（手動テスト用）: 2ファイルを選択させる。
-            if (TryPickTwoFiles(out var left, out var right))
-            {
-                _ = viewModel.LoadAsync(left, right);
-            }
-        }
+
+        // 引数なし起動: ホーム画面（比較方法の選択）を表示する。従来のように起動直後に
+        // ファイル選択ダイアログを自動で開くことはしない（仕様: 起動時ホーム画面）。
 
         // 起動時にバックグラウンドで更新チェック（インストール版のみ動作）。
         _ = UpdateService.CheckForUpdatesAsync();
-    }
-
-    /// <summary>
-    /// 「変更前」「変更後」の2ファイルをダイアログで選択する。キャンセル時は false。
-    /// </summary>
-    private static bool TryPickTwoFiles(out string left, out string right)
-    {
-        left = string.Empty;
-        right = string.Empty;
-
-        const string filter = "Excel ファイル (*.xlsx;*.xlsm;*.xls)|*.xlsx;*.xlsm;*.xls|すべてのファイル (*.*)|*.*";
-
-        var leftDialog = new OpenFileDialog { Title = "変更前（左）のファイルを選択", Filter = filter };
-        if (leftDialog.ShowDialog() != true)
-        {
-            return false;
-        }
-
-        var rightDialog = new OpenFileDialog { Title = "変更後（右）のファイルを選択", Filter = filter };
-        if (rightDialog.ShowDialog() != true)
-        {
-            return false;
-        }
-
-        left = leftDialog.FileName;
-        right = rightDialog.FileName;
-        return true;
     }
 }

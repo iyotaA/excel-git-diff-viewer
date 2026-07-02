@@ -8,6 +8,7 @@ using System.Windows.Media;
 using ExcelGitDiffViewer.Converters;
 using ExcelGitDiffViewer.Models;
 using ExcelGitDiffViewer.Services;
+using ExcelGitDiffViewer.Theme;
 using ExcelGitDiffViewer.ViewModels;
 using Microsoft.Win32;
 
@@ -30,6 +31,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        SourceInitialized += (_, _) => DarkTitleBar.Apply(this);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -62,6 +64,70 @@ public partial class MainWindow : Window
     private void OnShowDataView(object sender, RoutedEventArgs e) => _viewModel?.ShowDataView();
 
     private void OnShowVbaView(object sender, RoutedEventArgs e) => _viewModel?.ShowVbaView();
+
+    private void OnShowHomeClick(object sender, RoutedEventArgs e) => _viewModel?.ShowHomeView();
+
+    // ホーム画面の2カードは、既存のファイル選択 / Git 選択フローへ委譲する。
+    private void OnHomeCompareFilesClick(object sender, RoutedEventArgs e) => OnOpenFilesClick(sender, e);
+
+    private void OnHomeCompareGitClick(object sender, RoutedEventArgs e) => OnOpenFromGitClick(sender, e);
+
+    private void OnNextDiffClick(object sender, RoutedEventArgs e) => MoveToDiff(forward: true);
+
+    private void OnPrevDiffClick(object sender, RoutedEventArgs e) => MoveToDiff(forward: false);
+
+    /// <summary>現在の選択行から次（または前）の差分行へスクロールし、その行の先頭データ列を選択する。</summary>
+    private void MoveToDiff(bool forward)
+    {
+        var sheet = _viewModel?.SelectedSheet;
+        if (sheet == null)
+        {
+            return;
+        }
+
+        var leftRows = sheet.DisplayLeftRows;
+        var rightRows = sheet.DisplayRightRows;
+        int count = leftRows.Count;
+        if (count == 0)
+        {
+            return;
+        }
+
+        int start = LeftGrid.Items.IndexOf(LeftGrid.CurrentItem);
+        if (start < 0)
+        {
+            start = forward ? -1 : count;
+        }
+
+        int step = forward ? 1 : -1;
+        for (int i = start + step; i >= 0 && i < count; i += step)
+        {
+            if (!SheetTabViewModel.RowHasDiff(leftRows[i]) && !SheetTabViewModel.RowHasDiff(rightRows[i]))
+            {
+                continue;
+            }
+
+            var leftRow = leftRows[i];
+            var rightRow = rightRows[i];
+            LeftGrid.ScrollIntoView(leftRow);
+            RightGrid.ScrollIntoView(rightRow);
+
+            // 仮想化下では行コンテナ生成後に選択する必要があるため、後追いで選択する。
+            Dispatcher.BeginInvoke(
+                new System.Action(() =>
+                {
+                    if (LeftGrid.Columns.Count > 1)
+                    {
+                        var cell = new DataGridCellInfo(leftRow, LeftGrid.Columns[1]);
+                        LeftGrid.CurrentCell = cell;
+                        LeftGrid.SelectedCells.Clear();
+                        LeftGrid.SelectedCells.Add(cell);
+                    }
+                }),
+                System.Windows.Threading.DispatcherPriority.Background);
+            break;
+        }
+    }
 
     /// <summary>選択シートの列数に合わせて左右 DataGrid の列を再生成する。</summary>
     private void RebuildColumns()
@@ -135,20 +201,23 @@ public partial class MainWindow : Window
 
     private void HideDetail() => DetailPanel.Visibility = Visibility.Collapsed;
 
-    private static readonly Brush DeletedBg = MakeBrush(0xFB, 0xEA, 0xEB);
-    private static readonly Brush DeletedFg = MakeBrush(0x9A, 0x2C, 0x28);
-    private static readonly Brush InsertedBg = MakeBrush(0xE6, 0xF3, 0xEA);
-    private static readonly Brush InsertedFg = MakeBrush(0x1B, 0x60, 0x35);
-
-    /// <summary>インライン差分セグメントを TextBlock の Inlines として描画する。</summary>
+    /// <summary>インライン差分セグメントを TextBlock の Inlines として描画する（配色はテーマから取得）。</summary>
     private static void PopulateInlines(TextBlock target, IReadOnlyList<InlineSegment> segments)
     {
         target.Inlines.Clear();
         if (segments.Count == 0)
         {
-            target.Inlines.Add(new System.Windows.Documents.Run("(空)") { Foreground = Brushes.Gray });
+            target.Inlines.Add(new System.Windows.Documents.Run("(空)")
+            {
+                Foreground = ThemeResources.Brush(ThemeKeys.FgMuted, Brushes.Gray),
+            });
             return;
         }
+
+        var deletedBg = ThemeResources.Brush(ThemeKeys.InlineDelBg);
+        var deletedFg = ThemeResources.Brush(ThemeKeys.InlineDelFg);
+        var insertedBg = ThemeResources.Brush(ThemeKeys.InlineInsBg);
+        var insertedFg = ThemeResources.Brush(ThemeKeys.InlineInsFg);
 
         foreach (var seg in segments)
         {
@@ -156,24 +225,17 @@ public partial class MainWindow : Window
             switch (seg.Kind)
             {
                 case InlineSegmentKind.Deleted:
-                    run.Background = DeletedBg;
-                    run.Foreground = DeletedFg;
+                    run.Background = deletedBg;
+                    run.Foreground = deletedFg;
                     break;
                 case InlineSegmentKind.Inserted:
-                    run.Background = InsertedBg;
-                    run.Foreground = InsertedFg;
+                    run.Background = insertedBg;
+                    run.Foreground = insertedFg;
                     break;
             }
 
             target.Inlines.Add(run);
         }
-    }
-
-    private static Brush MakeBrush(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
     }
 
     /// <summary>行番号列＋値列（差分背景色付き）を生成する。</summary>
@@ -186,7 +248,8 @@ public partial class MainWindow : Window
             Header = "#",
             Binding = new Binding(nameof(RowModel.RowNumber)),
             IsReadOnly = true,
-            CellStyle = BuildRowNumberCellStyle(),
+            CellStyle = Application.Current?.TryFindResource(ThemeKeys.RowNumberCellStyle) as Style,
+            ElementStyle = Application.Current?.TryFindResource(ThemeKeys.RowNumberTextStyle) as Style,
         });
 
         for (int i = 0; i < columnCount; i++)
@@ -218,7 +281,7 @@ public partial class MainWindow : Window
         var marker = new FrameworkElementFactory(typeof(TextBlock));
         marker.SetValue(TextBlock.TextProperty, "ƒ");
         marker.SetValue(TextBlock.FontWeightProperty, FontWeights.Bold);
-        marker.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(0x21, 0x73, 0x46)));
+        marker.SetResourceReference(TextBlock.ForegroundProperty, ThemeKeys.MarkerFormulaFg);
         marker.SetValue(TextBlock.MarginProperty, new Thickness(4, 0, 0, 0));
         marker.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
         marker.SetValue(DockPanel.DockProperty, Dock.Right);
@@ -231,20 +294,13 @@ public partial class MainWindow : Window
         text.SetBinding(TextBlock.TextProperty, new Binding($"Cells[{columnIndex}].Display"));
         text.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
         text.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+        // DataGridTemplateColumn のセルテンプレート内では DataGridCell.Foreground が継承されず
+        // 既定の黒文字になりやすい。テーマの前景色を明示指定して視認性を確保する。
+        text.SetResourceReference(TextBlock.ForegroundProperty, ThemeKeys.FgPrimary);
         dock.AppendChild(text);
 
         border.AppendChild(dock);
         return new DataTemplate { VisualTree = border };
-    }
-
-    private static Style BuildRowNumberCellStyle()
-    {
-        var style = new Style(typeof(DataGridCell));
-        style.Setters.Add(new Setter(BackgroundProperty, new SolidColorBrush(Color.FromRgb(0xE9, 0xF2, 0xEC))));
-        style.Setters.Add(new Setter(ForegroundProperty, new SolidColorBrush(Color.FromRgb(0x5C, 0x6E, 0x64))));
-        style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(6, 2, 8, 2)));
-        style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Right));
-        return style;
     }
 
     /// <summary>0始まり列インデックスを Excel 風の列名（A, B, …, Z, AA, …）に変換する。</summary>

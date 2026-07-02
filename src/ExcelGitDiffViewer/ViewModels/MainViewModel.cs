@@ -9,9 +9,10 @@ using ExcelGitDiffViewer.Services;
 
 namespace ExcelGitDiffViewer.ViewModels;
 
-/// <summary>表示モード（データ・数式ビュー / VBAコードビュー, 仕様 §4）。</summary>
+/// <summary>表示モード（ホーム / データ・数式ビュー / VBAコードビュー, 仕様 §4）。</summary>
 public enum ViewMode
 {
+    Home,
     DataFormula,
     Vba,
 }
@@ -29,7 +30,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private SheetTabViewModel? _selectedSheet;
     private VbaModuleDiffViewModel? _selectedVbaModule;
     private bool _hasVba;
-    private ViewMode _currentView = ViewMode.DataFormula;
+    private ViewMode _currentView = ViewMode.Home;
+    private bool _isReviewMode;
 
     /// <summary>左（変更前）の表示用パス。</summary>
     public string LeftFilePath
@@ -54,7 +56,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _errorMessage, value))
             {
                 OnPropertyChanged(nameof(HasError));
-                OnPropertyChanged(nameof(ShowHint));
+                OnPropertyChanged(nameof(ShowHome));
             }
         }
     }
@@ -69,7 +71,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (SetField(ref _isLoaded, value))
             {
-                OnPropertyChanged(nameof(ShowHint));
                 OnPropertyChanged(nameof(ShowDataArea));
                 OnPropertyChanged(nameof(ShowVbaArea));
             }
@@ -84,13 +85,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (SetField(ref _isBusy, value))
             {
-                OnPropertyChanged(nameof(ShowHint));
+                OnPropertyChanged(nameof(ShowHome));
             }
         }
     }
-
-    /// <summary>未読み込み・非実行中・エラーなし＝操作ヒントを表示すべき状態。</summary>
-    public bool ShowHint => !IsLoaded && !HasError && !IsBusy;
 
     /// <summary>シートタブ群。</summary>
     public ObservableCollection<SheetTabViewModel> Sheets { get; } = new();
@@ -100,6 +98,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         get => _selectedSheet;
         set => SetField(ref _selectedSheet, value);
+    }
+
+    /// <summary>レビューモード（差分のみ表示）。全シート共通のトグルとして各シートへ伝播する。</summary>
+    public bool IsReviewMode
+    {
+        get => _isReviewMode;
+        set
+        {
+            if (SetField(ref _isReviewMode, value))
+            {
+                foreach (var sheet in Sheets)
+                {
+                    sheet.IsReviewMode = value;
+                }
+            }
+        }
     }
 
     /// <summary>VBA モジュール差分一覧。</summary>
@@ -127,23 +141,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (SetField(ref _currentView, value))
             {
+                OnPropertyChanged(nameof(IsHomeView));
                 OnPropertyChanged(nameof(IsDataView));
                 OnPropertyChanged(nameof(IsVbaView));
+                OnPropertyChanged(nameof(ShowHome));
                 OnPropertyChanged(nameof(ShowDataArea));
                 OnPropertyChanged(nameof(ShowVbaArea));
             }
         }
     }
 
+    public bool IsHomeView => _currentView == ViewMode.Home;
+
     public bool IsDataView => _currentView == ViewMode.DataFormula;
 
     public bool IsVbaView => _currentView == ViewMode.Vba;
+
+    /// <summary>ホーム画面（比較方法の選択）を表示すべきか。未読み込みでも表示する。</summary>
+    public bool ShowHome => IsHomeView && !IsBusy && !HasError;
 
     /// <summary>データ・数式ビューを表示すべきか。</summary>
     public bool ShowDataArea => IsLoaded && IsDataView;
 
     /// <summary>VBA コードビューを表示すべきか。</summary>
     public bool ShowVbaArea => IsLoaded && IsVbaView;
+
+    public void ShowHomeView() => CurrentView = ViewMode.Home;
 
     public void ShowDataView() => CurrentView = ViewMode.DataFormula;
 
@@ -185,7 +208,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             foreach (var diff in result.Sheets)
             {
-                Sheets.Add(new SheetTabViewModel(diff));
+                Sheets.Add(new SheetTabViewModel(diff) { IsReviewMode = _isReviewMode });
             }
 
             SelectedSheet = Sheets.Count > 0 ? Sheets[0] : null;

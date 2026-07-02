@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Windows;
 using ExcelGitDiffViewer.Services;
+using ExcelGitDiffViewer.Theme;
 
 namespace ExcelGitDiffViewer;
 
@@ -18,6 +19,7 @@ public partial class CommitPickerWindow : Window
     public CommitPickerWindow(string filePath, IReadOnlyList<GitCommitInfo> history)
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => DarkTitleBar.Apply(this);
 
         FileLabel.Text = $"対象: {filePath}";
         LeftList.ItemsSource = history;
