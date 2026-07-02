@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private ScrollViewer? _leftScroll;
     private ScrollViewer? _rightScroll;
     private bool _syncing;
+    private int _vbaCurrentIndex = -1;
 
     public MainWindow()
     {
@@ -59,6 +60,10 @@ public partial class MainWindow : Window
         {
             HideDetail();
         }
+        else if (e.PropertyName == nameof(MainViewModel.SelectedVbaModule))
+        {
+            _vbaCurrentIndex = -1;
+        }
     }
 
     private void OnShowDataView(object sender, RoutedEventArgs e) => _viewModel?.ShowDataView();
@@ -79,6 +84,12 @@ public partial class MainWindow : Window
     /// <summary>現在の選択行から次（または前）の差分行へスクロールし、その行の先頭データ列を選択する。</summary>
     private void MoveToDiff(bool forward)
     {
+        if (_viewModel?.IsVbaView == true)
+        {
+            MoveToVbaDiff(forward);
+            return;
+        }
+
         var sheet = _viewModel?.SelectedSheet;
         if (sheet == null)
         {
@@ -122,6 +133,67 @@ public partial class MainWindow : Window
                         LeftGrid.CurrentCell = cell;
                         LeftGrid.SelectedCells.Clear();
                         LeftGrid.SelectedCells.Add(cell);
+                    }
+                }),
+                System.Windows.Threading.DispatcherPriority.Background);
+            break;
+        }
+    }
+
+    /// <summary>
+    /// VBA コードビュー時、選択モジュールの差分行間を上下移動する。
+    /// レビュー ON では DisplayLines が既に差分行のみなので隣接インデックスを採用、OFF では Unchanged 行をスキップする。
+    /// </summary>
+    private void MoveToVbaDiff(bool forward)
+    {
+        var module = _viewModel?.SelectedVbaModule;
+        if (module == null)
+        {
+            return;
+        }
+
+        var lines = module.DisplayLines;
+        int count = lines.Count;
+        if (count == 0)
+        {
+            return;
+        }
+
+        // モード切替やモジュール切替で範囲外になった現在位置をクランプ。
+        if (_vbaCurrentIndex >= count)
+        {
+            _vbaCurrentIndex = count;
+        }
+        else if (_vbaCurrentIndex < -1)
+        {
+            _vbaCurrentIndex = -1;
+        }
+
+        int step = forward ? 1 : -1;
+        int start = _vbaCurrentIndex;
+        if (start < 0)
+        {
+            start = forward ? -1 : count;
+        }
+
+        for (int i = start + step; i >= 0 && i < count; i += step)
+        {
+            var line = lines[i];
+            if (!module.IsReviewMode &&
+                line.LeftKind == DiffKind.Unchanged && line.RightKind == DiffKind.Unchanged)
+            {
+                continue;
+            }
+
+            _vbaCurrentIndex = i;
+            var target = i;
+            Dispatcher.BeginInvoke(
+                new System.Action(() =>
+                {
+                    if (VbaLinesItems.ItemContainerGenerator.ContainerFromIndex(target)
+                        is FrameworkElement container)
+                    {
+                        container.BringIntoView();
                     }
                 }),
                 System.Windows.Threading.DispatcherPriority.Background);

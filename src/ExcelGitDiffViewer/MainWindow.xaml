@@ -41,14 +41,19 @@
                     <Button Content="VBAコードビュー" Padding="10,3"
                             IsEnabled="{Binding HasVba}" Click="OnShowVbaView" />
                 </StackPanel>
-                <!-- レビューモード操作（データ・数式ビュー表示中のみ） -->
+                <!-- レビューモード操作（データ・数式ビュー／VBA コードビュー表示中） -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
-                            Visibility="{Binding ShowDataArea, Converter={StaticResource BoolToVis}}">
+                            Visibility="{Binding ShowReviewToolbar, Converter={StaticResource BoolToVis}}">
                     <CheckBox Content="レビューモード（差分のみ）" VerticalAlignment="Center"
                               IsChecked="{Binding IsReviewMode, Mode=TwoWay}" />
                     <TextBlock Text="{Binding SelectedSheet.DiffRowCount, StringFormat=差分 {0} 件}"
                                Foreground="{DynamicResource Fg.Secondary}" VerticalAlignment="Center"
-                               Margin="12,0,0,0" />
+                               Margin="12,0,0,0"
+                               Visibility="{Binding IsDataView, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Text="{Binding SelectedVbaModule.DiffLineCount, StringFormat=差分 {0} 行}"
+                               Foreground="{DynamicResource Fg.Secondary}" VerticalAlignment="Center"
+                               Margin="12,0,0,0"
+                               Visibility="{Binding IsVbaView, Converter={StaticResource BoolToVis}}" />
                     <Button Content="▲ 前" Padding="8,3" Margin="12,0,0,0"
                             Click="OnPrevDiffClick" ToolTip="前の差分へ" />
                     <Button Content="▼ 次" Padding="8,3" Margin="6,0,0,0"
@@ -161,9 +166,9 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- モジュール一覧 -->
+                <!-- モジュール一覧（レビュー ON 時は変更ありのみ） -->
                 <ListBox Grid.Column="0" BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,0,1,0"
-                         ItemsSource="{Binding VbaModules}"
+                         ItemsSource="{Binding DisplayVbaModules}"
                          SelectedItem="{Binding SelectedVbaModule, Mode=TwoWay}">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -184,8 +189,8 @@
                             <TextBlock Grid.Column="1" Text="変更後" FontWeight="Bold" Foreground="{DynamicResource Diff.Add.Fg}" />
                         </Grid>
                     </Border>
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding SelectedVbaModule.Lines}">
+                    <ScrollViewer x:Name="VbaLinesScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="VbaLinesItems" ItemsSource="{Binding SelectedVbaModule.DisplayLines}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>

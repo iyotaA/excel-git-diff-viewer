@@ -73,6 +73,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(ShowDataArea));
                 OnPropertyChanged(nameof(ShowVbaArea));
+                OnPropertyChanged(nameof(ShowReviewToolbar));
             }
         }
     }
@@ -100,7 +101,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetField(ref _selectedSheet, value);
     }
 
-    /// <summary>レビューモード（差分のみ表示）。全シート共通のトグルとして各シートへ伝播する。</summary>
+    /// <summary>レビューモード（差分のみ表示）。シート／VBA モジュール双方に伝播し、VBA 一覧も絞り込む。</summary>
     public bool IsReviewMode
     {
         get => _isReviewMode;
@@ -112,12 +113,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     sheet.IsReviewMode = value;
                 }
+
+                foreach (var module in VbaModules)
+                {
+                    module.IsReviewMode = value;
+                }
+
+                RebuildDisplayVbaModules();
+
+                // フィルタで選択中のモジュールが消えた場合は先頭に再選択する。
+                if (SelectedVbaModule == null || !DisplayVbaModules.Contains(SelectedVbaModule))
+                {
+                    SelectedVbaModule = DisplayVbaModules.Count > 0 ? DisplayVbaModules[0] : null;
+                }
             }
         }
     }
 
-    /// <summary>VBA モジュール差分一覧。</summary>
+    /// <summary>VBA モジュール差分一覧（全件保持）。</summary>
     public ObservableCollection<VbaModuleDiffViewModel> VbaModules { get; } = new();
+
+    /// <summary>モジュール一覧に表示する VBA モジュール（レビュー ON 時は変更ありのみ）。</summary>
+    public ObservableCollection<VbaModuleDiffViewModel> DisplayVbaModules { get; } = new();
 
     /// <summary>現在選択中の VBA モジュール。</summary>
     public VbaModuleDiffViewModel? SelectedVbaModule
@@ -147,6 +164,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(ShowHome));
                 OnPropertyChanged(nameof(ShowDataArea));
                 OnPropertyChanged(nameof(ShowVbaArea));
+                OnPropertyChanged(nameof(ShowReviewToolbar));
             }
         }
     }
@@ -166,6 +184,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>VBA コードビューを表示すべきか。</summary>
     public bool ShowVbaArea => IsLoaded && IsVbaView;
 
+    /// <summary>レビューモード操作 UI（CheckBox / 件数 / ジャンプボタン）を表示すべきか。データ／VBA どちらでも表示する。</summary>
+    public bool ShowReviewToolbar => IsLoaded && (IsDataView || IsVbaView);
+
     public void ShowHomeView() => CurrentView = ViewMode.Home;
 
     public void ShowDataView() => CurrentView = ViewMode.DataFormula;
@@ -175,6 +196,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (HasVba)
         {
             CurrentView = ViewMode.Vba;
+        }
+    }
+
+    /// <summary>
+    /// モジュール一覧の表示コレクションを再構築する。レビュー ON 時は変更ありのみ、OFF 時は全件。
+    /// </summary>
+    private void RebuildDisplayVbaModules()
+    {
+        DisplayVbaModules.Clear();
+        foreach (var module in VbaModules)
+        {
+            if (!_isReviewMode || module.HasDiff)
+            {
+                DisplayVbaModules.Add(module);
+            }
         }
     }
 
@@ -199,6 +235,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CurrentView = ViewMode.DataFormula;
         Sheets.Clear();
         VbaModules.Clear();
+        DisplayVbaModules.Clear();
         HasVba = false;
         IsBusy = true;
 
@@ -215,10 +252,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             foreach (var d in result.VbaModules)
             {
-                VbaModules.Add(new VbaModuleDiffViewModel(d));
+                VbaModules.Add(new VbaModuleDiffViewModel(d) { IsReviewMode = _isReviewMode });
             }
 
-            SelectedVbaModule = VbaModules.Count > 0 ? VbaModules[0] : null;
+            RebuildDisplayVbaModules();
+
+            SelectedVbaModule = DisplayVbaModules.Count > 0 ? DisplayVbaModules[0] : null;
             HasVba = VbaModules.Count > 0;
 
             IsLoaded = true;
