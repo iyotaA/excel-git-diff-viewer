@@ -144,6 +144,113 @@
         </Setter>
     </Style>
 
+    <!-- ============ ComboBox（表示モード切替等） ============ -->
+    <!-- 既定の Aero テンプレはダーク時に白背景で浮くため、Button/CheckBox と同じテーマトークンで
+         描画するカスタムテンプレを適用する。ドロップダウン Popup も枠・角丸・地色をテーマに合わせる。 -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{DynamicResource Fg.Primary}" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Bd" Background="Transparent"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Bg.SurfaceAlt}" />
+                        </Trigger>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Bg.SurfaceAlt}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Grid.CellSelectedBg}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ComboBox">
+        <Setter Property="Foreground" Value="{DynamicResource Fg.Primary}" />
+        <Setter Property="Background" Value="{DynamicResource Bg.Elevated}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Default}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton x:Name="Toggle" Focusable="False"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                      ClickMode="Press">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Bd"
+                                            Background="{DynamicResource Bg.Elevated}"
+                                            BorderBrush="{DynamicResource Border.Default}"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ContentPresenter Grid.Column="0" Margin="10,4,4,4" VerticalAlignment="Center" />
+                                            <Path Grid.Column="1" Data="M 0,0 L 8,0 L 4,5 Z"
+                                                  Fill="{DynamicResource Fg.Secondary}"
+                                                  VerticalAlignment="Center" Margin="4,0,10,0" />
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Bg.SurfaceAlt}" />
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Border.Focus}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                          HorizontalAlignment="Left" VerticalAlignment="Center"
+                                          Margin="10,0,26,0"
+                                          TextBlock.Foreground="{DynamicResource Fg.Primary}" />
+                        <Popup Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
+                               AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                            <Border Margin="0,4,0,0"
+                                    Background="{DynamicResource Bg.Elevated}"
+                                    BorderBrush="{DynamicResource Border.Default}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    MinWidth="{Binding ElementName=Toggle, Path=ActualWidth}"
+                                    Padding="4">
+                                <ScrollViewer MaxHeight="320">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ============ ScrollBar（細いモダン） ============ -->
     <Style x:Key="ScrollBarThumbStyle" TargetType="Thumb">
         <Setter Property="OverridesDefaultStyle" Value="True" />

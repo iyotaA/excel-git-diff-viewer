@@ -8,11 +8,62 @@
         ShowInTaskbar="False">
 
     <Window.Resources>
-        <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="{DynamicResource Accent.Default}" />
-            <Setter Property="Margin" Value="0,20,0,10" />
+        <!-- TabControl / TabItem: ピル型（丸角）カスタムテンプレ。既定の OS スタイルを避けてテーマ色に統一。 -->
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0" IsItemsHost="True" Margin="0,0,0,12"
+                                      Panel.ZIndex="1" />
+                            <ContentPresenter Grid.Row="1" ContentSource="SelectedContent" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource Fg.Secondary}" />
+            <Setter Property="Padding" Value="16,7" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                BorderBrush="{DynamicResource Border.Default}"
+                                BorderThickness="1"
+                                CornerRadius="14"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
+                                              TextBlock.Foreground="{TemplateBinding Foreground}"
+                                              TextBlock.FontSize="{TemplateBinding FontSize}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Bg.Elevated}" />
+                                <Setter Property="Foreground" Value="{DynamicResource Fg.Primary}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Accent.Default}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Default}" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="KeyChip" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Bg.Elevated}" />
@@ -46,19 +97,21 @@
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
-                <TextBlock Text="Excel Git Diff Viewer 操作ガイド" FontSize="20" FontWeight="Bold"
-                           Foreground="{DynamicResource Fg.Primary}" />
-                <TextBlock Text="キーボードショートカット・基本操作・アプリ情報のまとめです。"
-                           Foreground="{DynamicResource Fg.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" />
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Excel Git Diff Viewer 操作ガイド" FontSize="20" FontWeight="Bold"
+                       Foreground="{DynamicResource Fg.Primary}" />
+            <TextBlock Text="キーボードショートカット・基本操作・アプリ情報のまとめです。"
+                       Foreground="{DynamicResource Fg.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" />
+        </StackPanel>
 
-                <!-- ショートカット一覧 -->
-                <TextBlock Text="キーボードショートカット" Style="{StaticResource SectionHeader}" />
+        <TabControl Grid.Row="1">
+            <TabItem Header="キーボードショートカット">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="180" />
@@ -139,18 +192,20 @@
                     </Border>
                     <TextBlock Grid.Row="11" Grid.Column="1" Text="検索バーを閉じる" Style="{StaticResource OpText}" Margin="12,0,0,6" />
                 </Grid>
+                </ScrollViewer>
+            </TabItem>
 
-                <!-- 基本操作 -->
-                <TextBlock Text="基本操作" Style="{StaticResource SectionHeader}" />
-
+            <TabItem Header="基本操作">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12">
+                <StackPanel>
                 <TextBlock Text="1. ファイル比較の始め方" Style="{StaticResource BodyLabel}" />
                 <TextBlock Style="{StaticResource Body}">
-                    ツールバー右上の「ファイルを開く…」を押し、変更前・変更後の 2 つの Excel ファイル（.xlsx / .xlsm / .xls）を順に選ぶと差分計算が始まります。ホーム画面の「📂 ファイルを比較」からも同じフローに入れます。
+                    ホーム画面の「📂 ファイルを比較」を押し、変更前・変更後の 2 つの Excel ファイル（.xlsx / .xlsm / .xls）を順に選ぶと差分計算が始まります。ショートカット Ctrl + O でも同じフローに入れます。
                 </TextBlock>
 
                 <TextBlock Text="2. Git 比較の始め方" Style="{StaticResource BodyLabel}" />
                 <TextBlock Style="{StaticResource Body}">
-                    「Git から開く…」またはホームの「🔀 Git 比較」から、Git 管理下の Excel ファイルを選択します。コミット選択ダイアログで左（変更前）・右（変更後）の 2 つのリビジョンを選ぶと、その時点のファイルを一時的に取り出して比較します。
+                    ホーム画面の「🔀 Git 比較」から、Git 管理下の Excel ファイルを選択します。コミット選択ダイアログで左（変更前）・右（変更後）の 2 つのリビジョンを選ぶと、その時点のファイルを一時的に取り出して比較します。
                 </TextBlock>
 
                 <TextBlock Text="3. レビューモードと差分種別フィルタ" Style="{StaticResource BodyLabel}" />
@@ -172,22 +227,28 @@
                 <TextBlock Style="{StaticResource Body}">
                     ツールバー左上の「🌙 / ☀」ボタンでダーク / ライトを切り替えます。選択は次回起動時にも引き継がれます。
                 </TextBlock>
-
-                <!-- About -->
-                <TextBlock Text="このアプリについて" Style="{StaticResource SectionHeader}" />
-                <TextBlock Text="Excel Git Diff Viewer" FontWeight="Bold" FontSize="15"
-                           Foreground="{DynamicResource Fg.Primary}" Margin="0,0,0,4" />
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                    <TextBlock Text="バージョン: " Foreground="{DynamicResource Fg.Secondary}" />
-                    <TextBlock x:Name="VersionText" Foreground="{DynamicResource Fg.Primary}" />
                 </StackPanel>
-                <TextBlock Text="© 2026 Akihiro Iyota." Foreground="{DynamicResource Fg.Secondary}" Margin="0,0,0,4" />
-                <TextBlock Text="Excel ブック（.xlsx / .xlsm / .xls）と VBA プロジェクトの差分を GUI で比較するツールです。Git の difftool として登録して使うこともできます。"
-                           Foreground="{DynamicResource Fg.Secondary}" TextWrapping="Wrap" Margin="0,4,0,0" />
-            </StackPanel>
-        </ScrollViewer>
+                </ScrollViewer>
+            </TabItem>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <TabItem Header="このアプリについて">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12">
+                <StackPanel>
+                    <TextBlock Text="Excel Git Diff Viewer" FontWeight="Bold" FontSize="15"
+                               Foreground="{DynamicResource Fg.Primary}" Margin="0,0,0,4" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <TextBlock Text="バージョン: " Foreground="{DynamicResource Fg.Secondary}" />
+                        <TextBlock x:Name="VersionText" Foreground="{DynamicResource Fg.Primary}" />
+                    </StackPanel>
+                    <TextBlock Text="© 2026 Akihiro Iyota." Foreground="{DynamicResource Fg.Secondary}" Margin="0,0,0,4" />
+                    <TextBlock Text="Excel ブック（.xlsx / .xlsm / .xls）と VBA プロジェクトの差分を GUI で比較するツールです。Git の difftool として登録して使うこともできます。"
+                               Foreground="{DynamicResource Fg.Secondary}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="閉じる" Width="96" Height="30" IsCancel="True" />
         </StackPanel>
     </Grid>

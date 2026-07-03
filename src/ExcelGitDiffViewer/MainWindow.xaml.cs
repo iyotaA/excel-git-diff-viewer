@@ -100,12 +100,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnShowDataView(object sender, RoutedEventArgs e) => _viewModel?.ShowDataView();
-
-    private void OnShowVbaView(object sender, RoutedEventArgs e) => _viewModel?.ShowVbaView();
-
-    private void OnShowHomeClick(object sender, RoutedEventArgs e) => _viewModel?.ShowHomeView();
-
     // ホーム画面の2カードは、既存のファイル選択 / Git 選択フローへ委譲する。
     private void OnHomeCompareFilesClick(object sender, RoutedEventArgs e) => OnOpenFilesClick(sender, e);
 

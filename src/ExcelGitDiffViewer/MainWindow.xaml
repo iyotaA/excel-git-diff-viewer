@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:ExcelGitDiffViewer.Converters"
         xmlns:local="clr-namespace:ExcelGitDiffViewer"
+        xmlns:vm="clr-namespace:ExcelGitDiffViewer.ViewModels"
         Title="Excel Git Diff Viewer" Height="720" Width="1180"
         Icon="/Assets/app.ico"
         Style="{StaticResource AppWindowStyle}"
@@ -54,29 +55,24 @@
                 BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Vertical">
                 <DockPanel Margin="10,6">
-                <Button DockPanel.Dock="Right" Content="ファイルを開く…" Padding="10,3"
-                        Click="OnOpenFilesClick" />
-                <Button DockPanel.Dock="Right" Content="Git から開く…" Padding="10,3" Margin="0,0,6,0"
-                        Click="OnOpenFromGitClick" />
-                <!-- テーマ切替トグル (B-4)。押下で Dark ⇔ Light を切り替え、設定を永続化する -->
-                <Button DockPanel.Dock="Right" Content="{Binding ThemeToggleIcon}" Padding="8,3" Margin="0,0,6,0"
-                        Click="OnToggleThemeClick" ToolTip="テーマを切り替え (ライト / ダーク)" />
                 <!-- 操作ガイド (F1) -->
-                <Button DockPanel.Dock="Right" Content="?" Padding="10,3" Margin="0,0,6,0"
+                <Button DockPanel.Dock="Left" Content="?" Padding="10,3" Margin="0,0,6,0"
                         Click="OnShowHelpClick" ToolTip="操作ガイド (F1)" />
-                <TextBlock Text="Excel Git Diff Viewer" Foreground="{DynamicResource Fg.Primary}"
-                           FontWeight="Bold" FontSize="14" VerticalAlignment="Center"
-                           Margin="0,0,16,0" />
-                <!-- 表示モード切替（仕様 §4） -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                            Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVis}}">
-                    <Button Content="🏠 ホーム" Padding="10,3" Margin="0,0,12,0"
-                            Click="OnShowHomeClick" />
-                    <Button Content="データ・数式ビュー" Padding="10,3" Margin="0,0,6,0"
-                            Click="OnShowDataView" />
-                    <Button Content="VBAコードビュー" Padding="10,3"
-                            IsEnabled="{Binding HasVba}" Click="OnShowVbaView" />
-                </StackPanel>
+                <!-- テーマ切替トグル (B-4)。押下で Dark ⇔ Light を切り替え、設定を永続化する -->
+                <Button DockPanel.Dock="Left" Content="{Binding ThemeToggleIcon}" Padding="8,3" Margin="0,0,16,0"
+                        Click="OnToggleThemeClick" ToolTip="テーマを切り替え (ライト / ダーク)" />
+                <!-- 表示モード切替（仕様 §4）。ドロップダウンで UI を圧縮。CurrentView に双方向バインドし、
+                     Ctrl+1/2/3 のキーボード切替とも同期する。 -->
+                <ComboBox VerticalAlignment="Center" MinWidth="180"
+                          SelectedValue="{Binding CurrentView, Mode=TwoWay}"
+                          SelectedValuePath="Tag"
+                          ToolTip="表示モードを切り替え (Ctrl+1 / Ctrl+2 / Ctrl+3)"
+                          Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVis}}">
+                    <ComboBoxItem Content="🏠 ホーム" Tag="{x:Static vm:ViewMode.Home}" />
+                    <ComboBoxItem Content="データ・数式ビュー" Tag="{x:Static vm:ViewMode.DataFormula}" />
+                    <ComboBoxItem Content="VBAコードビュー" Tag="{x:Static vm:ViewMode.Vba}"
+                                  IsEnabled="{Binding HasVba}" />
+                </ComboBox>
                 <!-- レビューモード操作（データ・数式ビュー／VBA コードビュー表示中） -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
                             Visibility="{Binding ShowReviewToolbar, Converter={StaticResource BoolToVis}}">
