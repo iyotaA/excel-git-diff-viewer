@@ -1,0 +1,194 @@
+<Window x:Class="ExcelGitDiffViewer.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="操作ガイド" Height="720" Width="640"
+        Icon="/Assets/app.ico"
+        Style="{StaticResource AppWindowStyle}"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
+        ShowInTaskbar="False">
+
+    <Window.Resources>
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource Accent.Default}" />
+            <Setter Property="Margin" Value="0,20,0,10" />
+        </Style>
+        <Style x:Key="KeyChip" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Bg.Elevated}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Default}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style x:Key="KeyText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas, Yu Gothic UI" />
+            <Setter Property="Foreground" Value="{DynamicResource Fg.Primary}" />
+        </Style>
+        <Style x:Key="OpText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Fg.Primary}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Body" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Fg.Primary}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="LineHeight" Value="22" />
+        </Style>
+        <Style x:Key="BodyLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Fg.Primary}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="0,6,0,2" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="Excel Git Diff Viewer 操作ガイド" FontSize="20" FontWeight="Bold"
+                           Foreground="{DynamicResource Fg.Primary}" />
+                <TextBlock Text="キーボードショートカット・基本操作・アプリ情報のまとめです。"
+                           Foreground="{DynamicResource Fg.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" />
+
+                <!-- ショートカット一覧 -->
+                <TextBlock Text="キーボードショートカット" Style="{StaticResource SectionHeader}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="F3" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="次の差分へジャンプ" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Shift + F3" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="前の差分へジャンプ" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Ctrl + O" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="ファイルを開く（比較する2ファイルを選択）" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="3" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Ctrl + F" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="差分内検索バーの表示 / 非表示（データ・数式ビュー時のみ）" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="4" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Ctrl + H / Ctrl + 1" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="ホーム画面へ" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="5" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Ctrl + 2" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="データ・数式ビュー" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="6" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Ctrl + 3" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="VBA コードビュー" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="7" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Ctrl + R" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="レビューモード（差分のみ表示）を切替" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="8" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Alt + ← / →" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="8" Grid.Column="1" Text="前 / 次のシート（VBA ビュー時はモジュール）に切替" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="9" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="F1" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="9" Grid.Column="1" Text="操作ガイドを開く（このウィンドウ）" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="10" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Enter / Shift+Enter" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="10" Grid.Column="1" Text="検索バー内で次 / 前のヒットへ" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="11" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Esc" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="11" Grid.Column="1" Text="検索バーを閉じる" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+                </Grid>
+
+                <!-- 基本操作 -->
+                <TextBlock Text="基本操作" Style="{StaticResource SectionHeader}" />
+
+                <TextBlock Text="1. ファイル比較の始め方" Style="{StaticResource BodyLabel}" />
+                <TextBlock Style="{StaticResource Body}">
+                    ツールバー右上の「ファイルを開く…」を押し、変更前・変更後の 2 つの Excel ファイル（.xlsx / .xlsm / .xls）を順に選ぶと差分計算が始まります。ホーム画面の「📂 ファイルを比較」からも同じフローに入れます。
+                </TextBlock>
+
+                <TextBlock Text="2. Git 比較の始め方" Style="{StaticResource BodyLabel}" />
+                <TextBlock Style="{StaticResource Body}">
+                    「Git から開く…」またはホームの「🔀 Git 比較」から、Git 管理下の Excel ファイルを選択します。コミット選択ダイアログで左（変更前）・右（変更後）の 2 つのリビジョンを選ぶと、その時点のファイルを一時的に取り出して比較します。
+                </TextBlock>
+
+                <TextBlock Text="3. レビューモードと差分種別フィルタ" Style="{StaticResource BodyLabel}" />
+                <TextBlock Style="{StaticResource Body}">
+                    「レビューモード（差分のみ）」を ON にすると差分がある行だけが表示されます。隣の「追加 / 変更 / 削除」チェックで内訳を絞り込めます。いずれかを OFF にした瞬間、自動でレビューモードが ON になります。
+                </TextBlock>
+
+                <TextBlock Text="4. 差分内検索" Style="{StaticResource BodyLabel}" />
+                <TextBlock Style="{StaticResource Body}">
+                    Ctrl + F で検索バーを開き、セルの値または数式に含まれる文字列でヒットを一覧できます。Enter で次、Shift + Enter で前へ。「全シート」チェックで横断検索します。
+                </TextBlock>
+
+                <TextBlock Text="5. サマリーバー" Style="{StaticResource BodyLabel}" />
+                <TextBlock Style="{StaticResource Body}">
+                    ファイル情報バーの下に、変更シート数・追加行数・削除行数・変更セル数・VBA 変更モジュール数がバッジ表示されます。全体像を把握してから明細に入るのに使います。
+                </TextBlock>
+
+                <TextBlock Text="6. テーマ切替" Style="{StaticResource BodyLabel}" />
+                <TextBlock Style="{StaticResource Body}">
+                    ツールバー左上の「🌙 / ☀」ボタンでダーク / ライトを切り替えます。選択は次回起動時にも引き継がれます。
+                </TextBlock>
+
+                <!-- About -->
+                <TextBlock Text="このアプリについて" Style="{StaticResource SectionHeader}" />
+                <TextBlock Text="Excel Git Diff Viewer" FontWeight="Bold" FontSize="15"
+                           Foreground="{DynamicResource Fg.Primary}" Margin="0,0,0,4" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <TextBlock Text="バージョン: " Foreground="{DynamicResource Fg.Secondary}" />
+                    <TextBlock x:Name="VersionText" Foreground="{DynamicResource Fg.Primary}" />
+                </StackPanel>
+                <TextBlock Text="© 2026 Akihiro Iyota." Foreground="{DynamicResource Fg.Secondary}" Margin="0,0,0,4" />
+                <TextBlock Text="Excel ブック（.xlsx / .xlsm / .xls）と VBA プロジェクトの差分を GUI で比較するツールです。Git の difftool として登録して使うこともできます。"
+                           Foreground="{DynamicResource Fg.Secondary}" TextWrapping="Wrap" Margin="0,4,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="閉じる" Width="96" Height="30" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -85,6 +85,49 @@ public sealed class SheetTabViewModel : INotifyPropertyChanged
     /// <summary>差分を含む行数（レビューモードの ON/OFF に依らない固定値）。</summary>
     public int DiffRowCount => _diffLeftRows.Count;
 
+    /// <summary>追加行の件数（B-2 サマリー用）。</summary>
+    public int AddedRowCount => _diffRowKinds.Count(k => k == RowKind.Added);
+
+    /// <summary>削除行の件数（B-2 サマリー用）。</summary>
+    public int RemovedRowCount => _diffRowKinds.Count(k => k == RowKind.Removed);
+
+    /// <summary>変更行の件数（B-2 サマリー用）。</summary>
+    public int ModifiedRowCount => _diffRowKinds.Count(k => k == RowKind.Modified);
+
+    /// <summary>
+    /// 値または数式が変わったセルの総数（B-2 サマリー用）。
+    /// Modified は両側で同じ位置に印が付くため片側（左）でだけ数え、
+    /// AddedRight は右側、RemovedLeft は左側でカウントすることで重複カウントを避ける。
+    /// </summary>
+    public int ChangedCellCount
+    {
+        get
+        {
+            int count = 0;
+            var leftRows = _diff.LeftRows;
+            var rightRows = _diff.RightRows;
+            int rowCount = System.Math.Min(leftRows.Count, rightRows.Count);
+            for (int r = 0; r < rowCount; r++)
+            {
+                foreach (var cell in leftRows[r].Cells)
+                {
+                    if (cell.Diff == DiffKind.Modified || cell.Diff == DiffKind.RemovedLeft)
+                    {
+                        count++;
+                    }
+                }
+                foreach (var cell in rightRows[r].Cells)
+                {
+                    if (cell.Diff == DiffKind.AddedRight)
+                    {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+    }
+
     /// <summary>レビューモード（差分のみ表示）か。切替時に表示用コレクションを差し替える。</summary>
     public bool IsReviewMode
     {

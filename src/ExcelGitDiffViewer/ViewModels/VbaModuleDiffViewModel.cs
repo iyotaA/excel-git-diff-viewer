@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using ExcelGitDiffViewer.Models;
 
 namespace ExcelGitDiffViewer.ViewModels;
@@ -69,6 +70,15 @@ public sealed class VbaModuleDiffViewModel : INotifyPropertyChanged
 
     /// <summary>差分行の件数（レビューモードの ON/OFF に依らない固定値）。</summary>
     public int DiffLineCount => _diffLines.Count;
+
+    /// <summary>追加行の件数（B-2 サマリー用）。</summary>
+    public int AddedLineCount => _diffLineKinds.Count(k => k == RowKind.Added);
+
+    /// <summary>削除行の件数（B-2 サマリー用）。</summary>
+    public int RemovedLineCount => _diffLineKinds.Count(k => k == RowKind.Removed);
+
+    /// <summary>変更行の件数（B-2 サマリー用）。</summary>
+    public int ModifiedLineCount => _diffLineKinds.Count(k => k == RowKind.Modified);
 
     /// <summary>レビューモード（差分のみ表示）か。切替時に表示用コレクションを差し替える。</summary>
     public bool IsReviewMode

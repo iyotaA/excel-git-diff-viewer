@@ -18,10 +18,12 @@ public static class DarkTitleBar
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
     /// <summary>
-    /// 指定ウィンドウのタイトルバーをダークにする。ハンドルが必要なため
-    /// <see cref="Window.SourceInitialized"/> のタイミングで呼ぶこと。
+    /// 指定ウィンドウのタイトルバーをダーク/ライトに切り替える。ハンドルが必要なため
+    /// 初回は <see cref="Window.SourceInitialized"/> のタイミングで呼ぶこと。
+    /// テーマ切替後の再適用にも同じ関数を使う。
     /// </summary>
-    public static void Apply(Window window)
+    /// <param name="useDark">true でダーク（既定）、false でライト。</param>
+    public static void Apply(Window window, bool useDark = true)
     {
         var hwnd = new WindowInteropHelper(window).Handle;
         if (hwnd == IntPtr.Zero)
@@ -29,11 +31,11 @@ public static class DarkTitleBar
             return;
         }
 
-        int useDark = 1;
+        int value = useDark ? 1 : 0;
         // まず属性値 20（20H1 以降）で試し、古いビルド向けに 19 でも試す。
-        if (DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int)) != 0)
+        if (DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref value, sizeof(int)) != 0)
         {
-            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1, ref useDark, sizeof(int));
+            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1, ref value, sizeof(int));
         }
     }
 }

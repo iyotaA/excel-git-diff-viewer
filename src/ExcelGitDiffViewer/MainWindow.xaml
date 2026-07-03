@@ -25,6 +25,7 @@
         <CommandBinding Command="{x:Static local:MainWindow.ToggleReviewCommand}" Executed="OnToggleReviewCommand" />
         <CommandBinding Command="{x:Static local:MainWindow.PrevSheetCommand}" Executed="OnPrevSheetCommand" />
         <CommandBinding Command="{x:Static local:MainWindow.NextSheetCommand}" Executed="OnNextSheetCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.ShowHelpCommand}" Executed="OnShowHelpCommand" />
     </Window.CommandBindings>
     <Window.InputBindings>
         <KeyBinding Key="F3" Command="{x:Static local:MainWindow.NextDiffCommand}" />
@@ -36,10 +37,12 @@
         <KeyBinding Key="R" Modifiers="Control" Command="{x:Static local:MainWindow.ToggleReviewCommand}" />
         <KeyBinding Key="Left" Modifiers="Alt" Command="{x:Static local:MainWindow.PrevSheetCommand}" />
         <KeyBinding Key="Right" Modifiers="Alt" Command="{x:Static local:MainWindow.NextSheetCommand}" />
+        <KeyBinding Key="F1" Command="{x:Static local:MainWindow.ShowHelpCommand}" />
     </Window.InputBindings>
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -55,6 +58,12 @@
                         Click="OnOpenFilesClick" />
                 <Button DockPanel.Dock="Right" Content="Git から開く…" Padding="10,3" Margin="0,0,6,0"
                         Click="OnOpenFromGitClick" />
+                <!-- テーマ切替トグル (B-4)。押下で Dark ⇔ Light を切り替え、設定を永続化する -->
+                <Button DockPanel.Dock="Right" Content="{Binding ThemeToggleIcon}" Padding="8,3" Margin="0,0,6,0"
+                        Click="OnToggleThemeClick" ToolTip="テーマを切り替え (ライト / ダーク)" />
+                <!-- 操作ガイド (F1) -->
+                <Button DockPanel.Dock="Right" Content="?" Padding="10,3" Margin="0,0,6,0"
+                        Click="OnShowHelpClick" ToolTip="操作ガイド (F1)" />
                 <TextBlock Text="Excel Git Diff Viewer" Foreground="{DynamicResource Fg.Primary}"
                            FontWeight="Bold" FontSize="14" VerticalAlignment="Center"
                            Margin="0,0,16,0" />
@@ -149,8 +158,54 @@
             </Grid>
         </Border>
 
-        <!-- ③ コンテンツ領域 -->
-        <Grid Grid.Row="2">
+        <!-- ③ サマリー / 統計バー (B-2)。読み込み完了・エラーなし・非ローディング時に表示 -->
+        <Border Grid.Row="2" Background="{DynamicResource Bg.Surface}" BorderBrush="{DynamicResource Border.Default}"
+                BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding HasSummary, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="サマリー:" Foreground="{DynamicResource Fg.Secondary}"
+                           VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                <!-- 変更シート数 -->
+                <Border Background="{DynamicResource Bg.Elevated}" BorderBrush="{DynamicResource Border.Default}"
+                        BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
+                    <TextBlock Text="{Binding ChangedSheetCount, StringFormat=シート {0} 変更}"
+                               Foreground="{DynamicResource Fg.Primary}" />
+                </Border>
+
+                <!-- 追加行 -->
+                <Border Background="{DynamicResource Diff.Add.Bg}" BorderBrush="{DynamicResource Diff.Add.Fg}"
+                        BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
+                    <TextBlock Text="{Binding TotalAddedRows, StringFormat=+{0} 行}"
+                               Foreground="{DynamicResource Diff.Add.Fg}" FontWeight="Bold" />
+                </Border>
+
+                <!-- 削除行 -->
+                <Border Background="{DynamicResource Diff.Del.Bg}" BorderBrush="{DynamicResource Diff.Del.Fg}"
+                        BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
+                    <TextBlock Text="{Binding TotalRemovedRows, StringFormat=-{0} 行}"
+                               Foreground="{DynamicResource Diff.Del.Fg}" FontWeight="Bold" />
+                </Border>
+
+                <!-- 変更セル -->
+                <Border Background="{DynamicResource Diff.Chg.Bg}" BorderBrush="{DynamicResource Diff.Chg.Fg}"
+                        BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
+                    <TextBlock Text="{Binding TotalChangedCells, StringFormat=~{0} セル}"
+                               Foreground="{DynamicResource Diff.Chg.Fg}" FontWeight="Bold" />
+                </Border>
+
+                <!-- VBA 変更モジュール (VBA なしのときは非表示) -->
+                <Border Background="{DynamicResource Accent.Muted}" BorderBrush="{DynamicResource Accent.Default}"
+                        BorderThickness="1" CornerRadius="10" Padding="10,3"
+                        Visibility="{Binding HasVba, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding ChangedVbaModuleCount, StringFormat=VBA {0} モジュール}"
+                               Foreground="{DynamicResource Fg.Primary}" />
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- ④ コンテンツ領域 -->
+        <Grid Grid.Row="3">
             <!-- シート選択タブ + 左右 DataGrid（データ・数式ビュー） -->
             <Grid Visibility="{Binding ShowDataArea, Converter={StaticResource BoolToVis}}">
                 <Grid.RowDefinitions>
@@ -381,8 +436,8 @@
             </Border>
         </Grid>
 
-        <!-- ④ 下部詳細パネル（選択セルの値・数式差分, 仕様 §4） -->
-        <Border x:Name="DetailPanel" Grid.Row="3" Background="{DynamicResource Bg.Surface}"
+        <!-- ⑤ 下部詳細パネル（選択セルの値・数式差分, 仕様 §4） -->
+        <Border x:Name="DetailPanel" Grid.Row="4" Background="{DynamicResource Bg.Surface}"
                 BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,1,0,0" Padding="14,8"
                 Visibility="Collapsed">
             <Grid>

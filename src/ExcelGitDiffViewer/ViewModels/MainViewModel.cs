@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using ExcelGitDiffViewer.Models;
 using ExcelGitDiffViewer.Services;
+using ExcelGitDiffViewer.Theme;
 
 namespace ExcelGitDiffViewer.ViewModels;
 
@@ -75,6 +76,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(HasError));
                 OnPropertyChanged(nameof(ShowHome));
+                OnPropertyChanged(nameof(HasSummary));
             }
         }
     }
@@ -92,6 +94,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(ShowDataArea));
                 OnPropertyChanged(nameof(ShowVbaArea));
                 OnPropertyChanged(nameof(ShowReviewToolbar));
+                RaiseSummaryChanged();
             }
         }
     }
@@ -105,6 +108,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (SetField(ref _isBusy, value))
             {
                 OnPropertyChanged(nameof(ShowHome));
+                OnPropertyChanged(nameof(HasSummary));
             }
         }
     }
@@ -479,6 +483,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>レビューモード操作 UI（CheckBox / 件数 / ジャンプボタン）を表示すべきか。データ／VBA どちらでも表示する。</summary>
     public bool ShowReviewToolbar => IsLoaded && (IsDataView || IsVbaView);
+
+    // ── B-2 サマリー / 統計ダッシュボード ──
+
+    /// <summary>サマリーバー（比較全体像）の表示可否。読み込み完了かつ実行中・エラーでないとき表示。</summary>
+    public bool HasSummary => IsLoaded && !IsBusy && !HasError;
+
+    /// <summary>差分を含むシートの数。</summary>
+    public int ChangedSheetCount => Sheets.Count(s => s.DiffRowCount > 0);
+
+    /// <summary>全シート合算の追加行数。</summary>
+    public int TotalAddedRows => Sheets.Sum(s => s.AddedRowCount);
+
+    /// <summary>全シート合算の削除行数。</summary>
+    public int TotalRemovedRows => Sheets.Sum(s => s.RemovedRowCount);
+
+    /// <summary>全シート合算の変更セル数（値/数式が変わったセルの数）。</summary>
+    public int TotalChangedCells => Sheets.Sum(s => s.ChangedCellCount);
+
+    /// <summary>差分を含む VBA モジュールの数。</summary>
+    public int ChangedVbaModuleCount => VbaModules.Count(m => m.HasDiff);
+
+    /// <summary>テーマ切替ボタンに表示するアイコン（現在ダークなら「☀」＝押下でライトへ、ライトなら「🌙」＝押下でダークへ）。</summary>
+    public string ThemeToggleIcon => ThemeManager.Current == AppTheme.Dark ? "☀" : "🌙";
+
+    /// <summary>サマリー系プロパティの再計算を UI に通知する（読み込み完了時に呼ぶ）。</summary>
+    private void RaiseSummaryChanged()
+    {
+        OnPropertyChanged(nameof(HasSummary));
+        OnPropertyChanged(nameof(ChangedSheetCount));
+        OnPropertyChanged(nameof(TotalAddedRows));
+        OnPropertyChanged(nameof(TotalRemovedRows));
+        OnPropertyChanged(nameof(TotalChangedCells));
+        OnPropertyChanged(nameof(ChangedVbaModuleCount));
+    }
+
+    /// <summary>テーマ切替時に <see cref="ThemeToggleIcon"/> の再取得を UI に通知する。</summary>
+    public void NotifyThemeChanged() => OnPropertyChanged(nameof(ThemeToggleIcon));
 
     public void ShowHomeView() => CurrentView = ViewMode.Home;
 

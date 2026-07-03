@@ -1,5 +1,6 @@
 using System.Windows;
 using ExcelGitDiffViewer.Services;
+using ExcelGitDiffViewer.Theme;
 using ExcelGitDiffViewer.ViewModels;
 using Velopack;
 
@@ -17,6 +18,9 @@ public partial class App : Application
         VelopackApp.Build().Run();
 
         base.OnStartup(e);
+
+        // ユーザーが前回選択したテーマを Colors.*.xaml に適用してから UI を組む（B-4）。
+        ThemeManager.Initialize();
 
         var viewModel = new MainViewModel();
         var window = new MainWindow { DataContext = viewModel };

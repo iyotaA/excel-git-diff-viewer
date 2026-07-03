@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     public static readonly RoutedUICommand ToggleReviewCommand = new("レビューモード切替", nameof(ToggleReviewCommand), typeof(MainWindow));
     public static readonly RoutedUICommand PrevSheetCommand = new("前のシート / モジュール", nameof(PrevSheetCommand), typeof(MainWindow));
     public static readonly RoutedUICommand NextSheetCommand = new("次のシート / モジュール", nameof(NextSheetCommand), typeof(MainWindow));
+    public static readonly RoutedUICommand ShowHelpCommand = new("操作ガイド", nameof(ShowHelpCommand), typeof(MainWindow));
 
     private readonly DiffKindToBrushConverter _brushConverter = new();
     private readonly BooleanToVisibilityConverter _boolToVis = new();
@@ -44,7 +45,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
-        SourceInitialized += (_, _) => DarkTitleBar.Apply(this);
+        // タイトルバー配色は現在のテーマ (B-4) に合わせる。切替時は ThemeManager.RefreshTitleBars() で再適用される。
+        SourceInitialized += (_, _) => DarkTitleBar.Apply(this, ThemeManager.Current == AppTheme.Dark);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -259,6 +261,27 @@ public partial class MainWindow : Window
         {
             _viewModel.SelectNextVbaModule();
         }
+    }
+
+    /// <summary>ツールバー「?」ボタン → 操作ガイドを開く。</summary>
+    private void OnShowHelpClick(object sender, RoutedEventArgs e) => ShowHelp();
+
+    /// <summary>F1 キー → 操作ガイドを開く（CommandBinding.Executed 経由）。</summary>
+    private void OnShowHelpCommand(object sender, ExecutedRoutedEventArgs e) => ShowHelp();
+
+    /// <summary>ヘルプウィンドウをモーダルで表示する。既に開いているかは考慮しない（HelpWindow 自身が Esc / 閉じるで閉じる）。</summary>
+    private void ShowHelp()
+    {
+        var help = new HelpWindow { Owner = this };
+        help.ShowDialog();
+    }
+
+    /// <summary>テーマ切替トグル (B-4)。ダーク⇔ライトを反転して即時反映＋保存し、アイコン表示も更新する。</summary>
+    private void OnToggleThemeClick(object sender, RoutedEventArgs e)
+    {
+        ThemeManager.Toggle();
+        // ThemeToggleIcon プロパティは ThemeManager.Current 依存なのでバインディング側に再取得を促す。
+        _viewModel?.NotifyThemeChanged();
     }
 
     /// <summary>Ctrl+O (ApplicationCommands.Open) → 既存のファイルオープンフロー。</summary>
