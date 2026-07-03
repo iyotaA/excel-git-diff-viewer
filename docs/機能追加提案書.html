@@ -1,0 +1,501 @@
+<title>Excel Git Diff Viewer 機能追加提案書</title>
+<meta name="description" content="ExcelGitDiffViewer v0.3.0 の実装調査を踏まえた次期リリース以降の機能追加提案">
+<style>
+  :root{
+    --ground:#F6F9F7;
+    --surface:#FFFFFF;
+    --ink:#17231D;
+    --muted:#5C6E64;
+    --faint:#84978B;
+    --line:#E4EAE5;
+    --line-strong:#CCD8CF;
+    --accent:#217346;
+    --accent-deep:#0E4A2B;
+    --accent-tint:#E9F2EC;
+    --add-bg:#E6F3EA; --add-bd:#3C9D5E; --add-ink:#1B6035;
+    --del-bg:#FBEAEB; --del-bd:#D26B67; --del-ink:#9A2C28;
+    --chg-bg:#FCF4D8; --chg-bd:#D7B134; --chg-ink:#876811;
+    --radius:12px;
+    --radius-sm:7px;
+    --maxw:900px;
+    --mono:"Cascadia Code","Cascadia Mono","Consolas","SFMono-Regular",ui-monospace,monospace;
+    --sans:"Segoe UI","Yu Gothic UI","Hiragino Kaku Gothic ProN","Hiragino Sans","Meiryo",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--ground);color:var(--ink);
+    font-family:var(--sans);font-size:16.5px;line-height:1.85;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  }
+  .page{max-width:var(--maxw);margin:0 auto;padding:clamp(28px,5vw,64px) clamp(18px,5vw,56px) 96px;}
+
+  /* header */
+  .masthead{border-bottom:2px solid var(--accent);padding-bottom:28px;margin-bottom:8px;}
+  .eyebrow{
+    font-size:12.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);margin:0 0 14px;display:flex;align-items:center;gap:12px;
+  }
+  .eyebrow .rev{
+    color:var(--accent-deep);background:var(--accent-tint);border:1px solid var(--line-strong);
+    padding:2px 10px;border-radius:100px;letter-spacing:.08em;
+  }
+  h1{
+    font-size:clamp(2rem,5vw,2.9rem);line-height:1.12;font-weight:800;letter-spacing:-.01em;
+    margin:0 0 16px;color:var(--accent-deep);text-wrap:balance;
+  }
+  .lead{font-size:clamp(1.02rem,2.4vw,1.18rem);color:var(--muted);margin:0;max-width:62ch;}
+  .meta-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px;}
+  .chip{
+    font-size:13px;font-weight:600;padding:5px 12px;border-radius:100px;
+    background:var(--surface);border:1px solid var(--line-strong);color:var(--muted);
+  }
+  .chip strong{color:var(--accent-deep);font-weight:700;}
+
+  /* toc */
+  nav.toc{margin:36px 0 8px;padding:18px 22px;background:var(--accent-tint);border:1px solid var(--line-strong);border-radius:var(--radius);}
+  nav.toc .label{font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-deep);margin:0 0 12px;}
+  nav.toc ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 22px;counter-reset:toc;}
+  nav.toc li{counter-increment:toc;}
+  nav.toc a{color:var(--ink);text-decoration:none;font-size:.93rem;display:flex;gap:9px;padding:3px 0;border-radius:4px;}
+  nav.toc a::before{content:"§" counter(toc);color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;min-width:1.9em;}
+  nav.toc a:hover{color:var(--accent-deep);}
+
+  /* sections */
+  section{margin-top:56px;scroll-margin-top:20px;}
+  h2.sec{
+    font-size:clamp(1.35rem,3vw,1.7rem);font-weight:800;color:var(--accent-deep);
+    margin:0 0 20px;padding-bottom:12px;border-bottom:1px solid var(--line);
+    display:flex;align-items:baseline;gap:14px;text-wrap:balance;
+  }
+  h2.sec .num{font-size:.74em;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;}
+  h3{font-size:1.12rem;font-weight:700;color:var(--ink);margin:34px 0 10px;}
+  h3 .h3num{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:.5em;}
+  p{margin:0 0 14px;}
+  .muted{color:var(--muted);}
+  strong{font-weight:700;color:var(--accent-deep);}
+  a{color:var(--accent);}
+  a:focus-visible,nav.toc a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px;}
+
+  ul.body-list{margin:0 0 16px;padding-left:0;list-style:none;display:grid;gap:10px;}
+  ul.body-list>li{position:relative;padding-left:22px;}
+  ul.body-list>li::before{content:"";position:absolute;left:2px;top:.72em;width:7px;height:7px;border-radius:2px;background:var(--accent);}
+  ul.body-list ul{margin:8px 0 2px;padding-left:18px;list-style:none;display:grid;gap:6px;}
+  ul.body-list ul li{position:relative;padding-left:18px;color:var(--muted);font-size:.95rem;}
+  ul.body-list ul li::before{content:"";position:absolute;left:2px;top:.7em;width:5px;height:5px;border-radius:50%;background:var(--line-strong);}
+
+  code{
+    font-family:var(--mono);font-size:.86em;background:var(--accent-tint);color:var(--accent-deep);
+    padding:1px 6px;border-radius:5px;border:1px solid var(--line);word-break:break-word;
+  }
+
+  /* tables */
+  .table-wrap{overflow-x:auto;margin:18px 0 24px;border:1px solid var(--line);border-radius:var(--radius);-webkit-overflow-scrolling:touch;}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:.93rem;}
+  thead th{background:var(--accent-tint);color:var(--accent-deep);text-align:left;font-weight:700;padding:11px 16px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  tbody td{padding:11px 16px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:nth-child(even){background:#FAFCFA;}
+  td .n{font-variant-numeric:tabular-nums;}
+
+  /* callouts */
+  .note{border-left:3px solid var(--accent);background:var(--accent-tint);padding:12px 16px;border-radius:0 var(--radius-sm) var(--radius-sm) 0;margin:16px 0;font-size:.94rem;color:var(--ink);}
+  .note.warn{border-left-color:var(--chg-bd);background:var(--chg-bg);color:var(--chg-ink);}
+  .note .nt{font-weight:700;letter-spacing:.04em;display:block;margin-bottom:3px;}
+
+  /* proposal cards */
+  .cards{display:grid;gap:14px;margin:18px 0 8px;}
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 22px;position:relative;
+  }
+  .card .card-head{
+    display:flex;align-items:center;gap:12px;margin:0 0 10px;flex-wrap:wrap;
+  }
+  .card h4{
+    margin:0;font-size:1.05rem;font-weight:800;color:var(--accent-deep);flex:1;min-width:220px;
+  }
+  .card h4 .idx{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:.4em;}
+  .card .badge{
+    font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;
+    padding:3px 10px;border-radius:100px;border:1px solid var(--line-strong);
+    background:var(--accent-tint);color:var(--accent-deep);
+  }
+  .card .badge.effort-s{background:var(--add-bg);color:var(--add-ink);border-color:var(--add-bd);}
+  .card .badge.effort-m{background:var(--chg-bg);color:var(--chg-ink);border-color:var(--chg-bd);}
+  .card .badge.effort-l{background:var(--del-bg);color:var(--del-ink);border-color:var(--del-bd);}
+  .card .field{margin:6px 0;font-size:.95rem;}
+  .card .field .label{
+    display:inline-block;min-width:5em;font-size:.78rem;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-right:8px;vertical-align:top;
+  }
+  .card .field .value{color:var(--ink);}
+  .card .field.muted-field .value{color:var(--muted);font-size:.9rem;}
+
+  /* priority band */
+  .band{
+    display:inline-flex;align-items:center;gap:10px;
+    font-size:.82rem;font-weight:700;letter-spacing:.06em;
+    padding:6px 14px;border-radius:100px;margin-bottom:14px;
+    background:var(--accent-tint);color:var(--accent-deep);border:1px solid var(--line-strong);
+  }
+  .band .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+  .band.b .dot{background:var(--chg-bd);}
+  .band.c .dot{background:var(--del-bd);}
+  .band.d .dot{background:var(--faint);}
+
+  /* phases (roadmap) */
+  .phases{display:grid;gap:14px;margin:18px 0 8px;}
+  .phase{
+    display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;
+  }
+  .phase .badge{
+    font-weight:800;font-size:.8rem;letter-spacing:.04em;color:var(--accent-deep);
+    background:var(--accent-tint);border:1px solid var(--line-strong);
+    padding:6px 12px;border-radius:100px;white-space:nowrap;
+  }
+  .phase h4{margin:0 0 4px;font-size:1.02rem;color:var(--ink);}
+  .phase p{margin:0;color:var(--muted);font-size:.94rem;}
+
+  hr.rule{border:0;border-top:1px dashed var(--line-strong);margin:32px 0;}
+
+  footer.pagefoot{
+    margin-top:80px;padding-top:22px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:.86rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  }
+
+  @media (max-width:520px){
+    .card .field .label{display:block;margin-bottom:2px;}
+    .phase{grid-template-columns:1fr;}
+  }
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <p class="eyebrow">
+      <span>Feature Proposal</span>
+      <span class="rev">Rev. 2026-07</span>
+    </p>
+    <h1>Excel Git Diff Viewer<br>機能追加提案書</h1>
+    <p class="lead">
+      v0.3.0 のコードベース調査を踏まえ、実装済み機能の延長線上で費用対効果が高く、
+      レビュー・監査・PR 運用の実務価値を大きく引き上げる提案を優先度別に整理する。
+    </p>
+    <div class="meta-chips">
+      <span class="chip">対象バージョン: <strong>v0.3.0 → v1.0.0</strong></span>
+      <span class="chip">技術: <strong>WPF / .NET 8</strong></span>
+      <span class="chip">主要NuGet: <strong>NPOI / DiffPlex / LibGit2Sharp / OpenMcdf / Velopack</strong></span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="目次">
+    <p class="label">Contents</p>
+    <ol>
+      <li><a href="#context">背景と現状</a></li>
+      <li><a href="#priority-a">優先度A・UX底上げ</a></li>
+      <li><a href="#priority-b">優先度B・レビュー成果物化</a></li>
+      <li><a href="#priority-c">優先度C・差別化機能</a></li>
+      <li><a href="#priority-d">優先度D・エコシステム連携</a></li>
+      <li><a href="#roadmap">推奨ロードマップ</a></li>
+      <li><a href="#verify">検証方針</a></li>
+    </ol>
+  </nav>
+
+  <section id="context">
+    <h2 class="sec"><span class="num">§1</span>背景と現状</h2>
+    <p>
+      <strong>ExcelGitDiffViewer</strong> は v0.3.0 まで「Excel の Git 差分を GUI で見る」というコア価値が確立しており、
+      <code>NPOI + DiffPlex + LibGit2Sharp + OpenMcdf + Velopack</code> のスタックで
+      MVP → 数式比較 → 行アライメント → VBA差分 → 非同期化 → Velopack 自動更新まで着実に積み上がっている。
+    </p>
+
+    <h3><span class="h3num">1.1</span>コードベース調査で判明したギャップ</h3>
+    <ul class="body-list">
+      <li><strong>操作性の穴</strong> — XAML に <code>KeyBinding</code> が一切存在せず、検索・エクスポート機能もない</li>
+      <li><strong>レビュー体験の未完成</strong> — レビューモードはあるがコメント記入・状態永続化なし、追加/変更/削除の個別フィルタもない</li>
+      <li><strong>入り口の弱さ</strong> — ホーム画面はあるが「最近開いたファイル」「お気に入り」がない</li>
+      <li><strong>書式差分が未対応</strong> — セル背景色・フォント・罫線などの見た目の差分を拾えない</li>
+      <li><strong>ローカライズ・アクセシビリティ</strong> — 日本語ハードコード、<code>AutomationProperties</code> 未設定</li>
+    </ul>
+
+    <div class="note">
+      <span class="nt">この提案書の使い方</span>
+      本書は実装確定計画ではなく <strong>提案リスト</strong>。優先順位を決めて実際に着手する提案は、
+      本書をベースに個別の実装プランを起こす前提としている。
+    </div>
+
+    <h3><span class="h3num">1.2</span>凡例</h3>
+    <p class="muted">工数の目安 —
+      <span class="chip"><strong>S</strong> 半日〜1日</span>
+      <span class="chip"><strong>M</strong> 2〜4日</span>
+      <span class="chip"><strong>L</strong> 1週間以上</span>
+    </p>
+  </section>
+
+  <section id="priority-a">
+    <h2 class="sec"><span class="num">§2</span>優先度A・UX底上げ（低コスト・大効果）</h2>
+    <p>いずれも工数が小さく、既存アーキテクチャに素直に載る。導入すると体感 UX が段違いに向上する。次期リリース(v0.4.0)の中心候補。</p>
+
+    <span class="band a"><span class="dot"></span>Priority A</span>
+
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">A-1</span>キーボードショートカット</h4>
+          <span class="badge effort-s">工数 S</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value"><code>F3</code>/<code>Shift+F3</code> で次/前の差分、<code>Ctrl+F</code> 検索、<code>Ctrl+O</code> ファイルを開く、<code>Ctrl+H</code> ホーム、<code>Ctrl+R</code> レビュー切替、<code>Ctrl+1/2/3</code> ビュー切替、<code>Alt+←/→</code> シート切替</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">現在 XAML に <code>KeyBinding</code> が皆無。差分ジャンプは「▲前/▼次」ボタンのみで、慣れると絶対にキーボードから叩きたくなる操作。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>MainWindow.xaml</code> の <code>&lt;Window.InputBindings&gt;</code> に <code>KeyBinding</code> を追加し既存の <code>MoveToDiff()</code> / <code>MoveToVbaDiff()</code> にバインド。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">A-2</span>差分内検索</h4>
+          <span class="badge effort-m">工数 M</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value"><code>Ctrl+F</code> で検索バー、シート内のセル値/数式でヒットする箇所をハイライト＋ジャンプ、シート横断オプション。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">1万行の Excel で「顧客ID 12345 の行の変更を見たい」が現状不可能。レビュー体験の最大のボトルネック。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value">検索バーを <code>MainWindow.xaml</code> ツールバーに折りたたみで追加。ViewModel に <code>SearchQuery</code> / <code>SearchResults</code> / <code>CurrentMatchIndex</code>、ヒットは <code>DataGrid.ScrollIntoView</code> + セル選択で表示。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">A-3</span>最近開いたファイル / 最近使ったコミット</h4>
+          <span class="badge effort-s">工数 S</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">ホーム画面に「最近開いた比較」を最大10件表示、クリックで即比較。左右ファイルパス、Git 比較はリポジトリ+2つの SHA を保存。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">現状ホームは「ファイルを開く / Git から開く」の2ボタンのみで殺風景。日常利用の起動時間を削れる。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>%LOCALAPPDATA%\ExcelGitDiffViewer\recent.json</code> に JSON 保存(<code>System.Text.Json</code>)。ホームXAMLに <code>ItemsControl</code>。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">A-4</span>レビュー状態の永続化＆コメント機能</h4>
+          <span class="badge effort-m">工数 M</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">差分セル・差分行にメモ記入(右クリック→コメント追加)、「確認済み」チェック、状態を左右ファイルペア毎に JSON 保存。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">現状レビューモードはメモリのみ。実務のレビューは中断・再開が前提で「あとで見る」ができない。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>%LOCALAPPDATA%\ExcelGitDiffViewer\reviews\&lt;hash&gt;.json</code> に「差分位置キー → { reviewed, comment }」を保存。UIは詳細パネルの拡張として実装。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">A-5</span>差分種別フィルタ</h4>
+          <span class="badge effort-s">工数 S</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">レビューモードの隣に「追加 / 変更 / 削除」の3チェックボックス、ONの種別だけ表示。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">現状レビューモードは「全差分」しか出せず、「削除だけ確認したい」「新規行だけ見たい」が頻出ニーズ。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>SheetTabViewModel.IsReviewMode</code> の隣に <code>ShowAdded</code> / <code>ShowModified</code> / <code>ShowRemoved</code> を追加、<code>_diffLeftRows</code>/<code>_diffRightRows</code> を <code>DiffKind</code> でフィルタ。<code>DiffKind</code> enum は既に完全に揃っている。</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="priority-b">
+    <h2 class="sec"><span class="num">§3</span>優先度B・レビュー成果物として使える段階へ</h2>
+    <p>単に「見える」から「共有・記録できる」へ引き上げる帯。v0.5.0 のテーマ候補。</p>
+
+    <span class="band b"><span class="dot"></span>Priority B</span>
+
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">B-1</span>差分レポートのエクスポート</h4>
+          <span class="badge effort-m">工数 M</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">現在の比較結果を HTML / Markdown / CSV で出力。HTMLはセル色付きで社内共有可能、MarkdownはPRコメントに貼れる、CSVは集計用途。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">「レビュー結果をPRに貼りたい」「上長に報告したい」ができない。共有できないと業務プロセスに入り込めない。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value">HTMLは既存 <code>DiffKindToBrushConverter</code> の色を CSS に落とし込んだテンプレートに、シート単位でテーブル生成。出力先は <code>SaveFileDialog</code>。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">B-2</span>サマリー / 統計ダッシュボード</h4>
+          <span class="badge effort-s">工数 S</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">ホーム or ツールバーに「変更シートX個 / 追加X行 / 削除X行 / 変更Xセル / VBA変更Xモジュール」のオーバービュー表示。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">いきなり明細から入るのは辛い。「全体像把握→気になる箇所へジャンプ」の導線が欲しい。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>MainViewModel</code> に <code>Summary</code>プロパティ、<code>SheetTabViewModel.DiffCount</code>(既存)を集計。UIはビュー切替の上部にバッジ形式で常時表示。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">B-3</span>セル書式(色・フォント・罫線)の差分</h4>
+          <span class="badge effort-l">工数 L</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">値が同じでもセル背景色・フォント色・太字・罫線が変わっていたら「書式変更」として検知。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">経理・監査業務では「色を変える=意味的な変更」が多い。NPOIで書式情報は取れるので拾わないのはもったいない。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>ExcelReader</code> で <code>ICell.CellStyle</code> から <code>FillForegroundColor</code>/<code>Font.Color</code>/<code>IsBold</code>/<code>BorderTop..</code> を抽出、<code>CellModel</code> にプロパティ追加。<code>DiffEngine</code> に書式比較追加、<code>DiffKind</code> に <code>FormatChanged</code> を追加。</span></div>
+        <div class="field muted-field"><span class="label">注意</span><span class="value">差分が爆発しやすい(テンプレを丸ごと塗り替えただけで全セル書式差分になる)ので「書式差分を無視」トグルもセットで用意。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">B-4</span>ライトテーマ切替</h4>
+          <span class="badge effort-s">工数 S</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">ヘッダーに ☀/🌙 トグル、<code>Colors.Light.xaml</code> を追加してリソース切替。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">ダークテーマ固定は好き嫌いが分かれる。特に画面プロジェクタ・印刷スクショではライトが好まれる。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>App.xaml</code> にLight用ディクショナリ追加、<code>ThemeResources</code> で動的に <code>MergedDictionaries</code> を差し替え。<code>ThemeResources.Brush()</code> と <code>Colors.Dark.xaml</code> の設計はライト対応前提の作り、ペア追加するだけ。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">B-5</span>ブランチ間比較＆コミット履歴の拡張</h4>
+          <span class="badge effort-m">工数 M</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value"><code>CommitPickerWindow</code> にブランチセレクタ、任意の2ブランチの HEAD 比較、および100件超のコミット履歴(ページング or「もっと読む」)。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">現状「同一ブランチのコミット履歴100件」しか選べない。<code>feature/foo</code> と <code>main</code> の HEAD 比較は実務最頻出ケース。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>GitService.GetBranches()</code>(<code>repo.Branches</code>) を追加、<code>CommitPickerWindow</code> にブランチドロップダウン。100件制限は撤廃 or <code>LoadMore</code> ボタン化。LibGit2Sharp は完全対応済み。</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="priority-c">
+    <h2 class="sec"><span class="num">§4</span>優先度C・差別化機能</h2>
+    <p>工数は大きいが、他社ツールでも実現が薄く、v1.0.0 の "この製品でないと駄目な理由" を作る帯。</p>
+
+    <span class="band c"><span class="dot"></span>Priority C</span>
+
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">C-1</span>名前付き範囲 / ピボット / グラフ / 条件付き書式の差分</h4>
+          <span class="badge effort-l">工数 L</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">シートのセル値以外の Excel オブジェクトの変更を検知。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">実務の Excel は「ピボットの参照範囲を変えた」「グラフの系列を追加した」といった "セル外" の変更が多い。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value">NPOI で名前付き範囲・条件付き書式は取得可能。ピボット・グラフは NPOI の対応が限定的なため、必要なら <code>DocumentFormat.OpenXml</code> を追加導入。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">C-2</span>.xls(OLE2) の VBA 対応</h4>
+          <span class="badge effort-s">工数 S〜M</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value"><code>.xls</code> バイナリ形式でも VBA コード差分を拾えるようにする。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">現状は <code>.xlsm</code>(Zip内 <code>vbaProject.bin</code>)のみ対応。歴史あるプロジェクトほど .xls を使い続けているため導入余地が広がる。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value">.xls は本体が CFB 形式なので、Zip 展開をスキップして直接 <code>OpenMcdf</code> で VBA Storage を取り出せる。<code>VbaProjectReader</code> を分岐追加。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">C-3</span>3-way マージ(競合解決)</h4>
+          <span class="badge effort-l">工数 L</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">Git マージ競合時に <code>BASE / LOCAL / REMOTE</code> の3ペインで差分を見て、セル単位で LOCAL/REMOTE を選び解決結果を書き出す。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">Excel の Git 運用最大の痛点。競合したら「片方を捨てる」しかないのが現状で、これを解決できれば "この製品でないと駄目な理由" になる。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>git mergetool</code> プロトコル対応、書き戻し用に NPOI の書き込み処理を追加、UIは3列レイアウト。難易度高。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">C-4</span>英語ローカライゼーション</h4>
+          <span class="badge effort-m">工数 M</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">.resxへ日本語文字列を集約し、英語版リソースを追加、<code>CurrentUICulture</code> で切替。</span></div>
+        <div class="field"><span class="label">なぜ</span><span class="value">現状すべて日本語ハードコード。海外拠点や英語話者への展開余地を確保する準備投資。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value"><code>Properties/Resources.resx</code> + <code>Resources.en.resx</code>、XAML/code-behind の文字列を <code>{x:Static properties:Resources.XXX}</code> に置換。機械的だが範囲は広い。</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="priority-d">
+    <h2 class="sec"><span class="num">§5</span>優先度D・エコシステム連携</h2>
+    <p>アプリ単体ではなく、Windows/GitHub/エディタ側からの入口を用意する帯。</p>
+
+    <span class="band d"><span class="dot"></span>Priority D</span>
+
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">D-1</span>コンテキストメニュー統合</h4>
+          <span class="badge effort-s">工数 S</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">Explorer で <code>.xlsx</code>/<code>.xlsm</code> 右クリック → 「Excel Git Diff で開く」を追加。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value">Velopack インストーラに登録スクリプトを組み込み(<code>HKEY_CLASSES_ROOT</code> にキー追加)。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">D-2</span>GitHub PR 統合</h4>
+          <span class="badge effort-m">工数 M</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">PR の Files changed で Excel を検知したら「アプリで開く」プロトコルハンドラ(<code>excelgitdiff://</code>)。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value">プロトコルハンドラ登録＋ブラウザ拡張、または GitHub Actions での PR コメントによる誘導。</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4><span class="idx">D-3</span>VS Code 拡張</h4>
+          <span class="badge effort-m">工数 M</span>
+        </div>
+        <div class="field"><span class="label">何を</span><span class="value">拡張から <code>.xlsx</code> 右クリック → 本アプリに投げる。</span></div>
+        <div class="field"><span class="label">実装</span><span class="value">VS Code 拡張プロジェクトを別途作成し、コマンド経由でアプリを起動。</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <h2 class="sec"><span class="num">§6</span>推奨ロードマップ</h2>
+    <p>下記は費用対効果と依存関係を踏まえた推奨順序。実際の優先順位はユーザー判断で自由に組み替え可能。</p>
+
+    <div class="phases">
+      <div class="phase">
+        <span class="badge">v0.4.0 · 1〜2週間</span>
+        <div>
+          <h4>短期・体感UXの底上げ</h4>
+          <p><strong>A-1 ショートカット</strong> + <strong>A-3 最近開いたファイル</strong> + <strong>A-5 差分種別フィルタ</strong> + <strong>B-4 ライトテーマ</strong>。すべて工数S、既存アーキテクチャに素直に載る。</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <span class="badge">v0.5.0 · 2〜3週間</span>
+        <div>
+          <h4>中期・レビュー成果物としての価値確立</h4>
+          <p><strong>A-2 検索</strong> + <strong>A-4 コメント/永続化</strong> + <strong>B-1 エクスポート</strong> + <strong>B-2 サマリー</strong>。「見える」から「共有・記録できる」へ。</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <span class="badge">v1.0.0 に向けて</span>
+        <div>
+          <h4>長期・差別化ポイントの積み増し</h4>
+          <p><strong>B-3 書式差分</strong> + <strong>B-5 ブランチ間比較</strong> + <strong>C-1 ピボット/グラフ差分</strong>。他社ツールでも対応薄い領域で製品価値を確立。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note warn">
+      <span class="nt">留意事項</span>
+      C-3(3-wayマージ)は工数もリスクも大きく、v1.0.0 のフラッグシップ機能として別途プランを切ることを推奨。
+    </div>
+  </section>
+
+  <section id="verify">
+    <h2 class="sec"><span class="num">§7</span>検証方針</h2>
+    <ul class="body-list">
+      <li>各機能に対応する <code>SampleGen</code> / <code>VbaGen</code> のケースを追加してマニュアル動作確認
+        <ul>
+          <li>例: A-5 フィルタは「追加のみ / 削除のみ / 変更のみ」のサンプルを書き出す</li>
+        </ul>
+      </li>
+      <li><code>GitTest</code> プロジェクトを拡張し B-5 ブランチ比較のヘッドレスチェック</li>
+      <li>WPFのGUI目視確認は自動化不可のため、リリース前にユーザー側で通し動作確認</li>
+      <li>Velopack の自動更新経路は既存の <code>scripts/publish-release.ps1</code> 手順で公開</li>
+    </ul>
+  </section>
+
+  <footer class="pagefoot">
+    <span>Excel Git Diff Viewer / Feature Proposal</span>
+    <span>Generated 2026-07-03</span>
+  </footer>
+</div>

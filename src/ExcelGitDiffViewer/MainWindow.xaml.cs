@@ -4,6 +4,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using ExcelGitDiffViewer.Converters;
 using ExcelGitDiffViewer.Models;
@@ -19,6 +20,17 @@ namespace ExcelGitDiffViewer;
 /// </summary>
 public partial class MainWindow : Window
 {
+    // キーボードショートカット用の RoutedUICommand（A-1）。
+    // XAML の <Window.InputBindings> / <Window.CommandBindings> から x:Static で参照する。
+    public static readonly RoutedUICommand NextDiffCommand = new("次の差分へ", nameof(NextDiffCommand), typeof(MainWindow));
+    public static readonly RoutedUICommand PrevDiffCommand = new("前の差分へ", nameof(PrevDiffCommand), typeof(MainWindow));
+    public static readonly RoutedUICommand HomeViewCommand = new("ホーム画面", nameof(HomeViewCommand), typeof(MainWindow));
+    public static readonly RoutedUICommand DataViewCommand = new("データ・数式ビュー", nameof(DataViewCommand), typeof(MainWindow));
+    public static readonly RoutedUICommand VbaViewCommand = new("VBA コードビュー", nameof(VbaViewCommand), typeof(MainWindow));
+    public static readonly RoutedUICommand ToggleReviewCommand = new("レビューモード切替", nameof(ToggleReviewCommand), typeof(MainWindow));
+    public static readonly RoutedUICommand PrevSheetCommand = new("前のシート / モジュール", nameof(PrevSheetCommand), typeof(MainWindow));
+    public static readonly RoutedUICommand NextSheetCommand = new("次のシート / モジュール", nameof(NextSheetCommand), typeof(MainWindow));
+
     private readonly DiffKindToBrushConverter _brushConverter = new();
     private readonly BooleanToVisibilityConverter _boolToVis = new();
 
@@ -55,6 +67,12 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainViewModel.SelectedSheet))
         {
             RebuildColumns();
+            // 全シート検索でシートが切り替わった直後は列生成タイミングに合わせて再度スクロールする必要がある。
+            if (_viewModel?.CurrentMatch is not null)
+            {
+                Dispatcher.BeginInvoke(new System.Action(JumpToCurrentSearchMatch),
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
         }
         else if (e.PropertyName == nameof(MainViewModel.CurrentView) && _viewModel?.IsDataView != true)
         {
@@ -63,6 +81,20 @@ public partial class MainWindow : Window
         else if (e.PropertyName == nameof(MainViewModel.SelectedVbaModule))
         {
             _vbaCurrentIndex = -1;
+        }
+        else if (e.PropertyName == nameof(MainViewModel.CurrentMatch))
+        {
+            JumpToCurrentSearchMatch();
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsSearchBarVisible)
+                 && _viewModel?.IsSearchBarVisible == true)
+        {
+            // 検索バーが開いた直後は TextBox にフォーカスを移して全選択（Ctrl+F 直後の再検索がしやすい）。
+            Dispatcher.BeginInvoke(new System.Action(() =>
+            {
+                SearchTextBox.Focus();
+                SearchTextBox.SelectAll();
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
     }
 
@@ -77,9 +109,239 @@ public partial class MainWindow : Window
 
     private void OnHomeCompareGitClick(object sender, RoutedEventArgs e) => OnOpenFromGitClick(sender, e);
 
+    /// <summary>ホーム画面「最近開いた比較」のエントリクリック。Files はそのまま、Git は SHA から一時ファイルを再展開して比較開始。</summary>
+    private async void OnRecentEntryClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.DataContext is not RecentEntry entry || _viewModel == null)
+        {
+            return;
+        }
+
+        if (entry.Kind == RecentKind.Files)
+        {
+            if (string.IsNullOrEmpty(entry.LeftPath) || string.IsNullOrEmpty(entry.RightPath) ||
+                !System.IO.File.Exists(entry.LeftPath) || !System.IO.File.Exists(entry.RightPath))
+            {
+                MessageBox.Show(this,
+                    "このエントリのファイルが見つかりませんでした。履歴から削除します。",
+                    "ファイルが見つかりません", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _viewModel.RemoveRecentEntry(entry);
+                return;
+            }
+
+            var refreshed = new RecentEntry
+            {
+                Kind = RecentKind.Files,
+                LeftPath = entry.LeftPath,
+                RightPath = entry.RightPath,
+                LeftLabel = entry.LeftLabel,
+                RightLabel = entry.RightLabel,
+                TimestampUtc = System.DateTime.UtcNow,
+            };
+            await _viewModel.LoadAsync(entry.LeftPath, entry.RightPath, recentEntry: refreshed);
+            return;
+        }
+
+        // Git 比較の履歴：SHA から一時ファイルを再展開する。
+        if (string.IsNullOrEmpty(entry.RepoRoot) || string.IsNullOrEmpty(entry.RelativePath) ||
+            !System.IO.Directory.Exists(entry.RepoRoot))
+        {
+            MessageBox.Show(this,
+                "このエントリのリポジトリが見つかりませんでした。履歴から削除します。",
+                "リポジトリが見つかりません", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _viewModel.RemoveRecentEntry(entry);
+            return;
+        }
+
+        var leftInfo = entry.LeftSha == null ? GitCommitInfo.WorkingTree : new GitCommitInfo(entry.LeftSha, entry.LeftLabel);
+        var rightInfo = entry.RightSha == null ? GitCommitInfo.WorkingTree : new GitCommitInfo(entry.RightSha, entry.RightLabel);
+
+        string? leftPath = GitService.RestoreToTemp(entry.RepoRoot, entry.RelativePath, leftInfo);
+        string? rightPath = GitService.RestoreToTemp(entry.RepoRoot, entry.RelativePath, rightInfo);
+        if (leftPath == null || rightPath == null)
+        {
+            MessageBox.Show(this,
+                "指定したリビジョンからファイルを復元できませんでした。履歴から削除します。",
+                "復元失敗", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _viewModel.RemoveRecentEntry(entry);
+            return;
+        }
+
+        var refreshedGit = new RecentEntry
+        {
+            Kind = RecentKind.Git,
+            RepoRoot = entry.RepoRoot,
+            RelativePath = entry.RelativePath,
+            LeftSha = entry.LeftSha,
+            RightSha = entry.RightSha,
+            LeftLabel = entry.LeftLabel,
+            RightLabel = entry.RightLabel,
+            TimestampUtc = System.DateTime.UtcNow,
+        };
+        await _viewModel.LoadAsync(leftPath, rightPath,
+            leftLabel: entry.LeftLabel,
+            rightLabel: entry.RightLabel,
+            recentEntry: refreshedGit);
+    }
+
     private void OnNextDiffClick(object sender, RoutedEventArgs e) => MoveToDiff(forward: true);
 
     private void OnPrevDiffClick(object sender, RoutedEventArgs e) => MoveToDiff(forward: false);
+
+    // ── キーボードショートカット (A-1) の Executed ハンドラ群 ──
+    // 既存のクリックハンドラとロジックを共有するため、CommandBinding.Executed から共通処理へ委譲する。
+
+    private void OnNextDiffCommand(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_viewModel?.IsLoaded == true)
+        {
+            MoveToDiff(forward: true);
+        }
+    }
+
+    private void OnPrevDiffCommand(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_viewModel?.IsLoaded == true)
+        {
+            MoveToDiff(forward: false);
+        }
+    }
+
+    private void OnHomeViewCommand(object sender, ExecutedRoutedEventArgs e) => _viewModel?.ShowHomeView();
+
+    private void OnDataViewCommand(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_viewModel?.IsLoaded == true)
+        {
+            _viewModel.ShowDataView();
+        }
+    }
+
+    private void OnVbaViewCommand(object sender, ExecutedRoutedEventArgs e) => _viewModel?.ShowVbaView();
+
+    private void OnToggleReviewCommand(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_viewModel?.IsLoaded == true)
+        {
+            _viewModel.ToggleReviewMode();
+        }
+    }
+
+    private void OnPrevSheetCommand(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_viewModel == null)
+        {
+            return;
+        }
+
+        if (_viewModel.IsDataView)
+        {
+            _viewModel.SelectPrevSheet();
+        }
+        else if (_viewModel.IsVbaView)
+        {
+            _viewModel.SelectPrevVbaModule();
+        }
+    }
+
+    private void OnNextSheetCommand(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_viewModel == null)
+        {
+            return;
+        }
+
+        if (_viewModel.IsDataView)
+        {
+            _viewModel.SelectNextSheet();
+        }
+        else if (_viewModel.IsVbaView)
+        {
+            _viewModel.SelectNextVbaModule();
+        }
+    }
+
+    /// <summary>Ctrl+O (ApplicationCommands.Open) → 既存のファイルオープンフロー。</summary>
+    private void OnOpenCommand(object sender, ExecutedRoutedEventArgs e) => OnOpenFilesClick(sender, e);
+
+    /// <summary>Ctrl+F (ApplicationCommands.Find) → 検索バーをトグル。読み込み前 / VBA ビュー時は無視。</summary>
+    private void OnFindCommand(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_viewModel?.IsLoaded == true && _viewModel.IsDataView)
+        {
+            _viewModel.ToggleSearchBar();
+        }
+    }
+
+    // ── 検索バー (A-2) の UI ハンドラ ──
+
+    private void OnPrevMatchClick(object sender, RoutedEventArgs e) => _viewModel?.MoveMatch(forward: false);
+
+    private void OnNextMatchClick(object sender, RoutedEventArgs e) => _viewModel?.MoveMatch(forward: true);
+
+    private void OnCloseSearchClick(object sender, RoutedEventArgs e) => _viewModel?.CloseSearchBar();
+
+    private void OnSearchTextBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_viewModel == null)
+        {
+            return;
+        }
+
+        // TextBox 内で Ctrl+F を吸い込まないよう、以下の3キーだけを検索操作にバインドする。
+        switch (e.Key)
+        {
+            case Key.Enter:
+                _viewModel.MoveMatch(forward: (e.KeyboardDevice.Modifiers & ModifierKeys.Shift) == 0);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                _viewModel.CloseSearchBar();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>現在の <see cref="MainViewModel.CurrentMatch"/> の位置へスクロール＋セル選択でジャンプする。</summary>
+    private void JumpToCurrentSearchMatch()
+    {
+        var match = _viewModel?.CurrentMatch;
+        if (match == null)
+        {
+            return;
+        }
+
+        // シート切替が必要なら先に SelectedSheet を差し替える（列再生成完了後に SelectedSheet 変更ハンドラが再度この関数を呼び直す）。
+        if (_viewModel!.SelectedSheet != match.Sheet)
+        {
+            _viewModel.SelectedSheet = match.Sheet;
+            return;
+        }
+
+        Dispatcher.BeginInvoke(new System.Action(() =>
+        {
+            var grid = match.IsLeft ? LeftGrid : RightGrid;
+            var rows = match.IsLeft ? match.Sheet.DisplayLeftRows : match.Sheet.DisplayRightRows;
+            if (match.RowIndex < 0 || match.RowIndex >= rows.Count)
+            {
+                return;
+            }
+
+            // 列 0 は行番号列。データ列は 1-based。
+            int gridColumnIndex = match.ColumnIndex + 1;
+            if (gridColumnIndex >= grid.Columns.Count)
+            {
+                return;
+            }
+
+            var row = rows[match.RowIndex];
+            grid.ScrollIntoView(row);
+            var cell = new DataGridCellInfo(row, grid.Columns[gridColumnIndex]);
+            grid.CurrentCell = cell;
+            grid.SelectedCells.Clear();
+            grid.SelectedCells.Add(cell);
+        }), System.Windows.Threading.DispatcherPriority.Background);
+    }
 
     /// <summary>現在の選択行から次（または前）の差分行へスクロールし、その行の先頭データ列を選択する。</summary>
     private void MoveToDiff(bool forward)
@@ -451,7 +713,16 @@ public partial class MainWindow : Window
 
         if (_viewModel != null)
         {
-            await _viewModel.LoadAsync(leftDialog.FileName, rightDialog.FileName);
+            var recent = new RecentEntry
+            {
+                Kind = RecentKind.Files,
+                LeftPath = leftDialog.FileName,
+                RightPath = rightDialog.FileName,
+                LeftLabel = System.IO.Path.GetFileName(leftDialog.FileName),
+                RightLabel = System.IO.Path.GetFileName(rightDialog.FileName),
+                TimestampUtc = System.DateTime.UtcNow,
+            };
+            await _viewModel.LoadAsync(leftDialog.FileName, rightDialog.FileName, recentEntry: recent);
         }
     }
 
@@ -503,9 +774,23 @@ public partial class MainWindow : Window
         if (_viewModel != null)
         {
             string name = System.IO.Path.GetFileName(relativePath);
+            string leftLabel = $"{name} @ {ShortLabel(picker.SelectedLeft)}";
+            string rightLabel = $"{name} @ {ShortLabel(picker.SelectedRight)}";
+            var recent = new RecentEntry
+            {
+                Kind = RecentKind.Git,
+                RepoRoot = repoRoot,
+                RelativePath = relativePath,
+                LeftSha = picker.SelectedLeft.Sha,
+                RightSha = picker.SelectedRight.Sha,
+                LeftLabel = leftLabel,
+                RightLabel = rightLabel,
+                TimestampUtc = System.DateTime.UtcNow,
+            };
             await _viewModel.LoadAsync(leftPath, rightPath,
-                leftLabel: $"{name} @ {ShortLabel(picker.SelectedLeft)}",
-                rightLabel: $"{name} @ {ShortLabel(picker.SelectedRight)}");
+                leftLabel: leftLabel,
+                rightLabel: rightLabel,
+                recentEntry: recent);
         }
     }
 

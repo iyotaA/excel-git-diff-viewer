@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:ExcelGitDiffViewer.Converters"
+        xmlns:local="clr-namespace:ExcelGitDiffViewer"
         Title="Excel Git Diff Viewer" Height="720" Width="1180"
         Icon="/Assets/app.ico"
         Style="{StaticResource AppWindowStyle}"
@@ -11,6 +12,31 @@
         <conv:DiffKindToBrushConverter x:Key="DiffBrush" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
     </Window.Resources>
+
+    <!-- キーボードショートカット (A-1)。DataGrid のセル操作より Window レベルの入力が優先される。 -->
+    <Window.CommandBindings>
+        <CommandBinding Command="ApplicationCommands.Open" Executed="OnOpenCommand" />
+        <CommandBinding Command="ApplicationCommands.Find" Executed="OnFindCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.NextDiffCommand}" Executed="OnNextDiffCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.PrevDiffCommand}" Executed="OnPrevDiffCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.HomeViewCommand}" Executed="OnHomeViewCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.DataViewCommand}" Executed="OnDataViewCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.VbaViewCommand}" Executed="OnVbaViewCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.ToggleReviewCommand}" Executed="OnToggleReviewCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.PrevSheetCommand}" Executed="OnPrevSheetCommand" />
+        <CommandBinding Command="{x:Static local:MainWindow.NextSheetCommand}" Executed="OnNextSheetCommand" />
+    </Window.CommandBindings>
+    <Window.InputBindings>
+        <KeyBinding Key="F3" Command="{x:Static local:MainWindow.NextDiffCommand}" />
+        <KeyBinding Key="F3" Modifiers="Shift" Command="{x:Static local:MainWindow.PrevDiffCommand}" />
+        <KeyBinding Key="H" Modifiers="Control" Command="{x:Static local:MainWindow.HomeViewCommand}" />
+        <KeyBinding Key="D1" Modifiers="Control" Command="{x:Static local:MainWindow.HomeViewCommand}" />
+        <KeyBinding Key="D2" Modifiers="Control" Command="{x:Static local:MainWindow.DataViewCommand}" />
+        <KeyBinding Key="D3" Modifiers="Control" Command="{x:Static local:MainWindow.VbaViewCommand}" />
+        <KeyBinding Key="R" Modifiers="Control" Command="{x:Static local:MainWindow.ToggleReviewCommand}" />
+        <KeyBinding Key="Left" Modifiers="Alt" Command="{x:Static local:MainWindow.PrevSheetCommand}" />
+        <KeyBinding Key="Right" Modifiers="Alt" Command="{x:Static local:MainWindow.NextSheetCommand}" />
+    </Window.InputBindings>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -22,8 +48,9 @@
 
         <!-- ① ツールバー -->
         <Border Grid.Row="0" Background="{DynamicResource Bg.Surface}"
-                BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,0,0,1" Padding="10,6">
-            <DockPanel>
+                BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Vertical">
+                <DockPanel Margin="10,6">
                 <Button DockPanel.Dock="Right" Content="ファイルを開く…" Padding="10,3"
                         Click="OnOpenFilesClick" />
                 <Button DockPanel.Dock="Right" Content="Git から開く…" Padding="10,3" Margin="0,0,6,0"
@@ -55,11 +82,48 @@
                                Margin="12,0,0,0"
                                Visibility="{Binding IsVbaView, Converter={StaticResource BoolToVis}}" />
                     <Button Content="▲ 前" Padding="8,3" Margin="12,0,0,0"
-                            Click="OnPrevDiffClick" ToolTip="前の差分へ" />
+                            Click="OnPrevDiffClick" ToolTip="前の差分へ (Shift+F3)" />
                     <Button Content="▼ 次" Padding="8,3" Margin="6,0,0,0"
-                            Click="OnNextDiffClick" ToolTip="次の差分へ" />
+                            Click="OnNextDiffClick" ToolTip="次の差分へ (F3)" />
+                    <!-- 差分種別フィルタ (A-5): 常に有効。既定は全 ON、いずれか OFF にするとレビューモードを自動 ON にする -->
+                    <CheckBox Content="追加" VerticalAlignment="Center" Margin="16,0,0,0"
+                              IsChecked="{Binding ShowAdded, Mode=TwoWay}"
+                              ToolTip="挿入された行を表示（OFF にするとレビューモードが ON になり、追加行が隠れます）" />
+                    <CheckBox Content="変更" VerticalAlignment="Center" Margin="8,0,0,0"
+                              IsChecked="{Binding ShowModified, Mode=TwoWay}"
+                              ToolTip="値・数式が変更された行を表示（OFF にするとレビューモードが ON になり、変更行が隠れます）" />
+                    <CheckBox Content="削除" VerticalAlignment="Center" Margin="8,0,0,0"
+                              IsChecked="{Binding ShowRemoved, Mode=TwoWay}"
+                              ToolTip="削除された行を表示（OFF にするとレビューモードが ON になり、削除行が隠れます）" />
                 </StackPanel>
-            </DockPanel>
+                </DockPanel>
+
+                <!-- 検索バー (A-2)。Ctrl+F でトグル、Esc で閉じる。折りたたみ表示。 -->
+                <Border Background="{DynamicResource Bg.SurfaceAlt}"
+                        BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,1,0,0"
+                        Padding="10,6"
+                        Visibility="{Binding IsSearchBarVisible, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="検索:" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Fg.Secondary}" Margin="0,0,8,0" />
+                        <TextBox x:Name="SearchTextBox" Width="260" VerticalAlignment="Center"
+                                 Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                 PreviewKeyDown="OnSearchTextBoxKeyDown" />
+                        <Button Content="◀ 前" Padding="8,3" Margin="8,0,0,0"
+                                Click="OnPrevMatchClick" ToolTip="前のヒット (Shift+Enter)" />
+                        <Button Content="▶ 次" Padding="8,3" Margin="6,0,0,0"
+                                Click="OnNextMatchClick" ToolTip="次のヒット (Enter)" />
+                        <TextBlock Text="{Binding SearchStatus}" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Fg.Secondary}" Margin="12,0,0,0"
+                                   MinWidth="90" />
+                        <CheckBox Content="全シート" VerticalAlignment="Center" Margin="8,0,0,0"
+                                  IsChecked="{Binding SearchAllSheets, Mode=TwoWay}"
+                                  ToolTip="全シートを横断して検索" />
+                        <Button Content="×" Padding="8,1" Margin="12,0,0,0"
+                                Click="OnCloseSearchClick" ToolTip="検索を閉じる (Esc)" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
         </Border>
 
         <!-- ② 対象ファイル情報バー（読み込み後のみ表示） -->
@@ -190,16 +254,17 @@
                         </Grid>
                     </Border>
                     <ScrollViewer x:Name="VbaLinesScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl x:Name="VbaLinesItems" ItemsSource="{Binding SelectedVbaModule.DisplayLines}">
+                        <ItemsControl x:Name="VbaLinesItems" ItemsSource="{Binding SelectedVbaModule.DisplayLines}"
+                                      Grid.IsSharedSizeScope="True">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="38" />
-                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="VbaLeftCode" />
                                             <ColumnDefinition Width="10" />
                                             <ColumnDefinition Width="38" />
-                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="VbaRightCode" />
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0" Text="{Binding LeftNumberDisplay}"
@@ -242,37 +307,66 @@
             <!-- ホーム画面（比較方法の選択）。起動直後・「ホーム」ボタンで表示 -->
             <Grid Visibility="{Binding ShowHome, Converter={StaticResource BoolToVis}}"
                   Background="{DynamicResource Bg.Window}">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="760">
-                    <TextBlock Text="Excel Git Diff Viewer" FontSize="26" FontWeight="Bold"
-                               Foreground="{DynamicResource Fg.Primary}" HorizontalAlignment="Center" />
-                    <TextBlock Text="比較方法を選んでください" FontSize="14"
-                               Foreground="{DynamicResource Fg.Secondary}"
-                               HorizontalAlignment="Center" Margin="0,6,0,28" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button Width="300" Height="180" Margin="0,0,20,0" Click="OnHomeCompareFilesClick">
-                            <StackPanel>
-                                <TextBlock Text="📂" FontSize="46" HorizontalAlignment="Center" />
-                                <TextBlock Text="ファイルを比較" FontSize="16" FontWeight="Bold"
-                                           HorizontalAlignment="Center" Margin="0,12,0,6" />
-                                <TextBlock Text="2つの Excel ファイルを選んで比較します"
-                                           FontSize="12" Foreground="{DynamicResource Fg.Secondary}"
-                                           HorizontalAlignment="Center" TextAlignment="Center"
-                                           TextWrapping="Wrap" MaxWidth="240" />
-                            </StackPanel>
-                        </Button>
-                        <Button Width="300" Height="180" Click="OnHomeCompareGitClick">
-                            <StackPanel>
-                                <TextBlock Text="🔀" FontSize="46" HorizontalAlignment="Center" />
-                                <TextBlock Text="Git 比較" FontSize="16" FontWeight="Bold"
-                                           HorizontalAlignment="Center" Margin="0,12,0,6" />
-                                <TextBlock Text="Git 管理下の Excel をコミット間で比較します"
-                                           FontSize="12" Foreground="{DynamicResource Fg.Secondary}"
-                                           HorizontalAlignment="Center" TextAlignment="Center"
-                                           TextWrapping="Wrap" MaxWidth="240" />
-                            </StackPanel>
-                        </Button>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="760"
+                                Margin="20,40,20,40">
+                        <TextBlock Text="Excel Git Diff Viewer" FontSize="26" FontWeight="Bold"
+                                   Foreground="{DynamicResource Fg.Primary}" HorizontalAlignment="Center" />
+                        <TextBlock Text="比較方法を選んでください" FontSize="14"
+                                   Foreground="{DynamicResource Fg.Secondary}"
+                                   HorizontalAlignment="Center" Margin="0,6,0,28" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Width="300" Height="180" Margin="0,0,20,0" Click="OnHomeCompareFilesClick">
+                                <StackPanel>
+                                    <TextBlock Text="📂" FontSize="46" HorizontalAlignment="Center" />
+                                    <TextBlock Text="ファイルを比較" FontSize="16" FontWeight="Bold"
+                                               HorizontalAlignment="Center" Margin="0,12,0,6" />
+                                    <TextBlock Text="2つの Excel ファイルを選んで比較します"
+                                               FontSize="12" Foreground="{DynamicResource Fg.Secondary}"
+                                               HorizontalAlignment="Center" TextAlignment="Center"
+                                               TextWrapping="Wrap" MaxWidth="240" />
+                                </StackPanel>
+                            </Button>
+                            <Button Width="300" Height="180" Click="OnHomeCompareGitClick">
+                                <StackPanel>
+                                    <TextBlock Text="🔀" FontSize="46" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Git 比較" FontSize="16" FontWeight="Bold"
+                                               HorizontalAlignment="Center" Margin="0,12,0,6" />
+                                    <TextBlock Text="Git 管理下の Excel をコミット間で比較します"
+                                               FontSize="12" Foreground="{DynamicResource Fg.Secondary}"
+                                               HorizontalAlignment="Center" TextAlignment="Center"
+                                               TextWrapping="Wrap" MaxWidth="240" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- 最近開いた比較（履歴 0 件のときは非表示） -->
+                        <StackPanel Margin="0,32,0,0"
+                                    Visibility="{Binding HasRecentEntries, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="最近開いた比較" FontSize="14" FontWeight="Bold"
+                                       Foreground="{DynamicResource Fg.Primary}" Margin="0,0,0,10" />
+                            <ItemsControl ItemsSource="{Binding RecentEntries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button HorizontalContentAlignment="Stretch"
+                                                Margin="0,0,0,6" Padding="12,8"
+                                                Click="OnRecentEntryClick"
+                                                ToolTip="{Binding DisplayTitle}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding DisplayTitle}" FontWeight="Bold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource Fg.Primary}" />
+                                                <TextBlock Text="{Binding DisplaySubtext}" FontSize="11"
+                                                           Foreground="{DynamicResource Fg.Secondary}"
+                                                           Margin="0,3,0,0" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </ScrollViewer>
             </Grid>
 
             <!-- 読み込み中オーバーレイ（非同期処理中, 仕様 §7 性能対策） -->
