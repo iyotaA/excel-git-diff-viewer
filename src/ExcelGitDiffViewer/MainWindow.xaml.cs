@@ -41,6 +41,13 @@ public partial class MainWindow : Window
     private bool _syncing;
     private int _vbaCurrentIndex = -1;
 
+    // 列テンプレートのキャッシュ（列インデックス単位）。テンプレートはグリッド非依存なので両グリッド・両モードで再利用する。
+    private readonly Dictionary<int, DataTemplate> _cellTemplateCache = new();
+
+    // 列再生成ガード用。前回生成時のシートと表示列集合の署名を保持し、変化がなければ再生成をスキップする。
+    private SheetTabViewModel? _lastColumnsSheet;
+    private string? _lastColumnsSignature;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -75,6 +82,12 @@ public partial class MainWindow : Window
                 Dispatcher.BeginInvoke(new System.Action(JumpToCurrentSearchMatch),
                     System.Windows.Threading.DispatcherPriority.Background);
             }
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsReviewMode)
+                 || e.PropertyName == nameof(MainViewModel.FilterColumns))
+        {
+            // レビュー切替・列フィルタ切替で表示列集合が変わりうる。ガード付き RebuildColumns で必要時のみ再生成する。
+            RebuildColumns();
         }
         else if (e.PropertyName == nameof(MainViewModel.CurrentView) && _viewModel?.IsDataView != true)
         {
@@ -344,15 +357,27 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // 列 0 は行番号列。データ列は 1-based。
-            int gridColumnIndex = match.ColumnIndex + 1;
-            if (gridColumnIndex >= grid.Columns.Count)
+            var row = rows[match.RowIndex];
+            grid.ScrollIntoView(row);
+
+            // 列フィルタで元列 → グリッド表示位置へ変換する（列0は行番号列）。隠れている列のヒットは行スクロールのみ。
+            var displayCols = match.Sheet.DisplayColumnIndexes;
+            int pos = -1;
+            for (int k = 0; k < displayCols.Count; k++)
+            {
+                if (displayCols[k] == match.ColumnIndex)
+                {
+                    pos = k;
+                    break;
+                }
+            }
+
+            int gridColumnIndex = pos + 1;
+            if (pos < 0 || gridColumnIndex >= grid.Columns.Count)
             {
                 return;
             }
 
-            var row = rows[match.RowIndex];
-            grid.ScrollIntoView(row);
             var cell = new DataGridCellInfo(row, grid.Columns[gridColumnIndex]);
             grid.CurrentCell = cell;
             grid.SelectedCells.Clear();
@@ -480,20 +505,44 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>選択シートの列数に合わせて左右 DataGrid の列を再生成する。</summary>
+    /// <summary>
+    /// 選択シートの表示列に合わせて左右 DataGrid の列を再生成する。
+    /// レビュー切替や列フィルタ切替でも呼ばれるため、表示列集合が前回と同じなら再生成をスキップする（性能対策）。
+    /// </summary>
     private void RebuildColumns()
     {
-        HideDetail();
         var sheet = _viewModel?.SelectedSheet;
         if (sheet == null)
         {
             LeftGrid.Columns.Clear();
             RightGrid.Columns.Clear();
+            _lastColumnsSheet = null;
+            _lastColumnsSignature = null;
+            HideDetail();
             return;
         }
 
-        BuildColumns(LeftGrid, sheet.ColumnCount);
-        BuildColumns(RightGrid, sheet.ColumnCount);
+        var displayCols = sheet.DisplayColumnIndexes;
+        string signature = string.Join(",", displayCols);
+
+        // 同一シートかつ同一の表示列集合なら列は変わらないので何もしない。
+        if (ReferenceEquals(_lastColumnsSheet, sheet) && signature == _lastColumnsSignature)
+        {
+            return;
+        }
+
+        // シートが変わったらテンプレートキャッシュを破棄（列インデックスの意味づけが変わるため）。
+        if (!ReferenceEquals(_lastColumnsSheet, sheet))
+        {
+            _cellTemplateCache.Clear();
+        }
+
+        HideDetail();
+        BuildColumns(LeftGrid, displayCols);
+        BuildColumns(RightGrid, displayCols);
+
+        _lastColumnsSheet = sheet;
+        _lastColumnsSignature = signature;
     }
 
     /// <summary>セル選択時に、その座標の値・数式差分を下部詳細パネルへ表示する。</summary>
@@ -510,13 +559,23 @@ public partial class MainWindow : Window
             return;
         }
 
-        int colIndex = grid.Columns.IndexOf(info.Column) - 1; // 列0 は行番号列。
+        int pos = grid.Columns.IndexOf(info.Column) - 1; // 列0 は行番号列。
         var sheet = _viewModel?.SelectedSheet;
-        if (colIndex < 0 || sheet == null)
+        if (pos < 0 || sheet == null)
         {
             HideDetail();
             return;
         }
+
+        // 列フィルタ時はグリッド上の列位置が元の列インデックスと一致しないため変換する。
+        var displayCols = sheet.DisplayColumnIndexes;
+        if (pos >= displayCols.Count)
+        {
+            HideDetail();
+            return;
+        }
+
+        int colIndex = displayCols[pos];
 
         int idx = row.AlignedIndex;
         if (idx < 0 || idx >= sheet.LeftRows.Count || idx >= sheet.RightRows.Count)
@@ -589,8 +648,11 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>行番号列＋値列（差分背景色付き）を生成する。</summary>
-    private void BuildColumns(DataGrid grid, int columnCount)
+    /// <summary>
+    /// 行番号列＋値列（差分背景色付き）を生成する。<paramref name="displayColumns"/> は表示する元列インデックスの並び
+    /// （列フィルタ時は差分列のみ）。セルバインドは元インデックスのままなので、絞り込んでも正しいセルを参照する。
+    /// </summary>
+    private void BuildColumns(DataGrid grid, IReadOnlyList<int> displayColumns)
     {
         grid.Columns.Clear();
 
@@ -603,7 +665,7 @@ public partial class MainWindow : Window
             ElementStyle = Application.Current?.TryFindResource(ThemeKeys.RowNumberTextStyle) as Style,
         });
 
-        for (int i = 0; i < columnCount; i++)
+        foreach (int i in displayColumns)
         {
             grid.Columns.Add(new DataGridTemplateColumn
             {
@@ -616,8 +678,22 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// セル1個分のテンプレート（背景=差分色の Border ＋ 値の TextBlock ＋ 数式インジケータ）を生成する。
+    /// 生成コスト削減のため列インデックス単位でキャッシュする（テンプレートはグリッド非依存）。
     /// </summary>
     private DataTemplate BuildCellTemplate(int columnIndex)
+    {
+        if (_cellTemplateCache.TryGetValue(columnIndex, out var cached))
+        {
+            return cached;
+        }
+
+        var template = CreateCellTemplate(columnIndex);
+        _cellTemplateCache[columnIndex] = template;
+        return template;
+    }
+
+    /// <summary>セル1個分のテンプレートを実際に構築する（キャッシュミス時のみ呼ばれる）。</summary>
+    private DataTemplate CreateCellTemplate(int columnIndex)
     {
         var border = new FrameworkElementFactory(typeof(Border));
         border.SetBinding(
@@ -710,6 +786,63 @@ public partial class MainWindow : Window
         {
             _syncing = false;
         }
+    }
+
+    /// <summary>
+    /// Shift+マウスホイールで左右 DataGrid を横スクロールする（Excel 同様の操作感）。
+    /// 横方向の左右同期は既存の <see cref="OnGridScrollChanged"/> が HorizontalChange 経由で自動的に行う。
+    /// </summary>
+    private void OnGridPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0 || sender is not DataGrid grid)
+        {
+            return; // Shift 非押下時は既定の縦スクロールに委ねる。
+        }
+
+        var sv = ReferenceEquals(grid, LeftGrid)
+            ? (_leftScroll ??= FindScrollViewer(LeftGrid))
+            : (_rightScroll ??= FindScrollViewer(RightGrid));
+        if (sv == null)
+        {
+            return;
+        }
+
+        sv.ScrollToHorizontalOffset(sv.HorizontalOffset - e.Delta); // ホイール上 → 左へ。
+        e.Handled = true;
+    }
+
+    /// <summary>Shift+マウスホイールで VBA コードビューを横スクロールする。</summary>
+    private void OnVbaPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        {
+            return;
+        }
+
+        VbaLinesScroll.ScrollToHorizontalOffset(VbaLinesScroll.HorizontalOffset - e.Delta);
+        e.Handled = true;
+    }
+
+    /// <summary>ビジュアルツリーを下って最初の <see cref="ScrollViewer"/> を返す（DataGrid 内部のスクロール領域取得用）。</summary>
+    private static ScrollViewer? FindScrollViewer(DependencyObject root)
+    {
+        if (root is ScrollViewer sv)
+        {
+            return sv;
+        }
+
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            var found = FindScrollViewer(child);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private async void OnOpenFilesClick(object sender, RoutedEventArgs e)

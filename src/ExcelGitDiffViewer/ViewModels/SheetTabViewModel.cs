@@ -32,7 +32,13 @@ public sealed class SheetTabViewModel : INotifyPropertyChanged
     private IReadOnlyList<RowModel> _filteredLeftRows;
     private IReadOnlyList<RowModel> _filteredRightRows;
 
+    // 列フィルタ用。差分を含む列インデックス（昇順）と全列インデックス（0..ColumnCount-1）を事前計算する。
+    private readonly IReadOnlyList<int> _diffColumnIndexes;
+    private readonly IReadOnlyList<int> _allColumnIndexes;
+
     private bool _isReviewMode;
+    private bool _filterRows = true;
+    private bool _filterColumns = true;
 
     public SheetTabViewModel(SheetDiffModel diff)
     {
@@ -44,6 +50,8 @@ public sealed class SheetTabViewModel : INotifyPropertyChanged
         var right = new List<RowModel>();
         var kinds = new List<RowKind>();
         int count = diff.LeftRows.Count;
+        int colCount = diff.ColumnCount;
+        var colHasDiff = new bool[colCount];
         for (int i = 0; i < count; i++)
         {
             var leftRow = diff.LeftRows[i];
@@ -53,6 +61,21 @@ public sealed class SheetTabViewModel : INotifyPropertyChanged
                 left.Add(leftRow);
                 right.Add(rightRow);
                 kinds.Add(ClassifyRow(leftRow, rightRow));
+
+                // 差分列の検出。値が実際に変わった/追加/削除されたセル（Modified / AddedRight / RemovedLeft）を
+                // 持つ列だけを差分列とみなす。Gap・Unchanged は除外するので、行追加削除で全列が差分扱いにならない。
+                for (int c = 0; c < colCount; c++)
+                {
+                    if (colHasDiff[c])
+                    {
+                        continue;
+                    }
+
+                    if (IsColumnDiff(leftRow, c) || IsColumnDiff(rightRow, c))
+                    {
+                        colHasDiff[c] = true;
+                    }
+                }
             }
         }
 
@@ -60,9 +83,35 @@ public sealed class SheetTabViewModel : INotifyPropertyChanged
         _diffRightRows = right;
         _diffRowKinds = kinds;
 
+        var diffCols = new List<int>();
+        var allCols = new List<int>(colCount);
+        for (int c = 0; c < colCount; c++)
+        {
+            allCols.Add(c);
+            if (colHasDiff[c])
+            {
+                diffCols.Add(c);
+            }
+        }
+
+        _diffColumnIndexes = diffCols;
+        _allColumnIndexes = allCols;
+
         // 既定は全種類 ON なのでフィルタ適用しても中身は同じ。
         _filteredLeftRows = _diffLeftRows;
         _filteredRightRows = _diffRightRows;
+    }
+
+    /// <summary>指定行の指定列セルが差分列の対象（値の変更・追加・削除）か。</summary>
+    private static bool IsColumnDiff(RowModel row, int c)
+    {
+        if (c >= row.Cells.Count)
+        {
+            return false;
+        }
+
+        var d = row.Cells[c].Diff;
+        return d == DiffKind.Modified || d == DiffKind.AddedRight || d == DiffKind.RemovedLeft;
     }
 
     public string Name => _diff.Name;
@@ -84,6 +133,9 @@ public sealed class SheetTabViewModel : INotifyPropertyChanged
 
     /// <summary>差分を含む行数（レビューモードの ON/OFF に依らない固定値）。</summary>
     public int DiffRowCount => _diffLeftRows.Count;
+
+    /// <summary>差分を含むシートか（レビュー ON 時のタブ絞り込み用。サマリーの ChangedSheetCount と定義を揃える）。</summary>
+    public bool HasDiff => DiffRowCount > 0;
 
     /// <summary>追加行の件数（B-2 サマリー用）。</summary>
     public int AddedRowCount => _diffRowKinds.Count(k => k == RowKind.Added);
@@ -145,11 +197,48 @@ public sealed class SheetTabViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>左 DataGrid にバインドする行（レビューモード時はフィルタ後の差分行、OFF 時は全行）。</summary>
-    public IReadOnlyList<RowModel> DisplayLeftRows => _isReviewMode ? _filteredLeftRows : LeftRows;
+    /// <summary>差分のある行だけを表示するか（レビューモードの下位フィルタ、既定 ON）。</summary>
+    public bool FilterRows
+    {
+        get => _filterRows;
+        set
+        {
+            if (_filterRows == value)
+            {
+                return;
+            }
 
-    /// <summary>右 DataGrid にバインドする行（レビューモード時はフィルタ後の差分行、OFF 時は全行）。</summary>
-    public IReadOnlyList<RowModel> DisplayRightRows => _isReviewMode ? _filteredRightRows : RightRows;
+            _filterRows = value;
+            if (_isReviewMode)
+            {
+                OnPropertyChanged(nameof(DisplayLeftRows));
+                OnPropertyChanged(nameof(DisplayRightRows));
+            }
+        }
+    }
+
+    /// <summary>差分のある列だけを表示するか（レビューモードの下位フィルタ、既定 ON）。列は code-behind が再生成する。</summary>
+    public bool FilterColumns
+    {
+        get => _filterColumns;
+        set => _filterColumns = value;
+    }
+
+    /// <summary>
+    /// 左 DataGrid にバインドする行。レビューモード ON かつ行フィルタ ON のときだけ差分行に絞る。
+    /// </summary>
+    public IReadOnlyList<RowModel> DisplayLeftRows => (_isReviewMode && _filterRows) ? _filteredLeftRows : LeftRows;
+
+    /// <summary>
+    /// 右 DataGrid にバインドする行。レビューモード ON かつ行フィルタ ON のときだけ差分行に絞る。
+    /// </summary>
+    public IReadOnlyList<RowModel> DisplayRightRows => (_isReviewMode && _filterRows) ? _filteredRightRows : RightRows;
+
+    /// <summary>
+    /// 表示する列インデックス（元シートの列番号）。レビューモード ON かつ列フィルタ ON のときだけ差分列に絞る。
+    /// code-behind の列生成が参照する。
+    /// </summary>
+    public IReadOnlyList<int> DisplayColumnIndexes => (_isReviewMode && _filterColumns) ? _diffColumnIndexes : _allColumnIndexes;
 
     /// <summary>行内のいずれかのセルに差分があるか（ギャップ・挿入・削除行も差分とみなす）。</summary>
     public static bool RowHasDiff(RowModel row) => row.Cells.Any(c => c.Diff != DiffKind.Unchanged);

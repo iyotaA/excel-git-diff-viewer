@@ -131,8 +131,69 @@
             </StackPanel>
         </Border>
 
-        <!-- ② 対象ファイル情報バー（読み込み後のみ表示） -->
-        <Border Grid.Row="1" Background="{DynamicResource Bg.Surface}" BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,0,0,1" Padding="12,6"
+        <!-- ② サマリー / 統計バー (B-2)。読み込み完了・エラーなし・非ローディング時に表示 -->
+        <Border Grid.Row="1" Background="{DynamicResource Bg.Surface}" BorderBrush="{DynamicResource Border.Default}"
+                BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding HasSummary, Converter={StaticResource BoolToVis}}">
+            <DockPanel LastChildFill="False">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Left">
+                    <TextBlock Text="サマリー:" Foreground="{DynamicResource Fg.Secondary}"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                    <!-- 変更シート数 -->
+                    <Border Background="{DynamicResource Bg.Elevated}" BorderBrush="{DynamicResource Border.Default}"
+                            BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding ChangedSheetCount, StringFormat=シート {0} 変更}"
+                                   Foreground="{DynamicResource Fg.Primary}" />
+                    </Border>
+
+                    <!-- 追加行 -->
+                    <Border Background="{DynamicResource Diff.Add.Bg}" BorderBrush="{DynamicResource Diff.Add.Fg}"
+                            BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding TotalAddedRows, StringFormat=+{0} 行}"
+                                   Foreground="{DynamicResource Diff.Add.Fg}" FontWeight="Bold" />
+                    </Border>
+
+                    <!-- 削除行 -->
+                    <Border Background="{DynamicResource Diff.Del.Bg}" BorderBrush="{DynamicResource Diff.Del.Fg}"
+                            BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding TotalRemovedRows, StringFormat=-{0} 行}"
+                                   Foreground="{DynamicResource Diff.Del.Fg}" FontWeight="Bold" />
+                    </Border>
+
+                    <!-- 変更セル -->
+                    <Border Background="{DynamicResource Diff.Chg.Bg}" BorderBrush="{DynamicResource Diff.Chg.Fg}"
+                            BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding TotalChangedCells, StringFormat=~{0} セル}"
+                                   Foreground="{DynamicResource Diff.Chg.Fg}" FontWeight="Bold" />
+                    </Border>
+
+                    <!-- VBA 変更モジュール (VBA なしのときは非表示) -->
+                    <Border Background="{DynamicResource Accent.Muted}" BorderBrush="{DynamicResource Accent.Default}"
+                            BorderThickness="1" CornerRadius="10" Padding="10,3"
+                            Visibility="{Binding HasVba, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding ChangedVbaModuleCount, StringFormat=VBA {0} モジュール}"
+                                   Foreground="{DynamicResource Fg.Primary}" />
+                    </Border>
+                </StackPanel>
+
+                <!-- 差分フィルタ（行 / 列）。レビューモード ON のときだけ表示する下位フィルタ。既定は両方 ON。 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Right"
+                            Visibility="{Binding IsReviewMode, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="差分のみ:" Foreground="{DynamicResource Fg.Secondary}"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <CheckBox Content="行" VerticalAlignment="Center"
+                              IsChecked="{Binding FilterRows, Mode=TwoWay}"
+                              ToolTip="差分のある行だけを表示" />
+                    <CheckBox Content="列" VerticalAlignment="Center" Margin="12,0,0,0"
+                              IsChecked="{Binding FilterColumns, Mode=TwoWay}"
+                              ToolTip="差分のある列だけを表示" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ③ 対象ファイル情報バー（読み込み後のみ表示。差分ウィンドウ直上に配置） -->
+        <Border Grid.Row="2" Background="{DynamicResource Bg.Surface}" BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,0,0,1" Padding="12,6"
                 Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVis}}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -154,102 +215,28 @@
             </Grid>
         </Border>
 
-        <!-- ③ サマリー / 統計バー (B-2)。読み込み完了・エラーなし・非ローディング時に表示 -->
-        <Border Grid.Row="2" Background="{DynamicResource Bg.Surface}" BorderBrush="{DynamicResource Border.Default}"
-                BorderThickness="0,0,0,1" Padding="12,6"
-                Visibility="{Binding HasSummary, Converter={StaticResource BoolToVis}}">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="サマリー:" Foreground="{DynamicResource Fg.Secondary}"
-                           VerticalAlignment="Center" Margin="0,0,10,0" />
-
-                <!-- 変更シート数 -->
-                <Border Background="{DynamicResource Bg.Elevated}" BorderBrush="{DynamicResource Border.Default}"
-                        BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
-                    <TextBlock Text="{Binding ChangedSheetCount, StringFormat=シート {0} 変更}"
-                               Foreground="{DynamicResource Fg.Primary}" />
-                </Border>
-
-                <!-- 追加行 -->
-                <Border Background="{DynamicResource Diff.Add.Bg}" BorderBrush="{DynamicResource Diff.Add.Fg}"
-                        BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
-                    <TextBlock Text="{Binding TotalAddedRows, StringFormat=+{0} 行}"
-                               Foreground="{DynamicResource Diff.Add.Fg}" FontWeight="Bold" />
-                </Border>
-
-                <!-- 削除行 -->
-                <Border Background="{DynamicResource Diff.Del.Bg}" BorderBrush="{DynamicResource Diff.Del.Fg}"
-                        BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
-                    <TextBlock Text="{Binding TotalRemovedRows, StringFormat=-{0} 行}"
-                               Foreground="{DynamicResource Diff.Del.Fg}" FontWeight="Bold" />
-                </Border>
-
-                <!-- 変更セル -->
-                <Border Background="{DynamicResource Diff.Chg.Bg}" BorderBrush="{DynamicResource Diff.Chg.Fg}"
-                        BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
-                    <TextBlock Text="{Binding TotalChangedCells, StringFormat=~{0} セル}"
-                               Foreground="{DynamicResource Diff.Chg.Fg}" FontWeight="Bold" />
-                </Border>
-
-                <!-- VBA 変更モジュール (VBA なしのときは非表示) -->
-                <Border Background="{DynamicResource Accent.Muted}" BorderBrush="{DynamicResource Accent.Default}"
-                        BorderThickness="1" CornerRadius="10" Padding="10,3"
-                        Visibility="{Binding HasVba, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{Binding ChangedVbaModuleCount, StringFormat=VBA {0} モジュール}"
-                               Foreground="{DynamicResource Fg.Primary}" />
-                </Border>
-            </StackPanel>
-        </Border>
-
         <!-- ④ コンテンツ領域 -->
         <Grid Grid.Row="3">
-            <!-- シート選択タブ + 左右 DataGrid（データ・数式ビュー） -->
+            <!-- シート一覧（左・縦並び） + 左右 DataGrid（データ・数式ビュー）。VBA コードビューと UI を統一。 -->
             <Grid Visibility="{Binding ShowDataArea, Converter={StaticResource BoolToVis}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                <!-- シートタブ（選択用） -->
-                <ListBox Grid.Row="0" BorderThickness="0" Background="{DynamicResource Bg.SurfaceAlt}" Padding="4,4,4,0"
-                         ItemsSource="{Binding Sheets}"
+                <!-- シート一覧（レビュー ON 時は差分ありのみ）。VBA モジュール一覧と同じ縦並び ListBox。 -->
+                <ListBox Grid.Column="0" BorderBrush="{DynamicResource Border.Default}" BorderThickness="0,0,1,0"
+                         ItemsSource="{Binding DisplaySheets}"
                          SelectedItem="{Binding SelectedSheet, Mode=TwoWay}">
-                    <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="Margin" Value="2,0" />
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="bd" Background="{DynamicResource Bg.Elevated}" BorderBrush="{DynamicResource Border.Default}"
-                                                BorderThickness="1,1,1,0" CornerRadius="6,6,0,0" Padding="12,6">
-                                            <ContentPresenter />
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent.Default}" />
-                                                <Setter Property="TextElement.Foreground" Value="{DynamicResource Fg.OnAccent}" />
-                                                <Setter Property="TextElement.FontWeight" Value="Bold" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <TextBlock Text="{Binding Header}" />
+                            <TextBlock Text="{Binding Header}" Padding="4,3" />
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
 
                 <!-- 左右 DataGrid -->
-                <Grid Grid.Row="1">
+                <Grid Grid.Column="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="6" />
@@ -260,6 +247,7 @@
                               Style="{StaticResource DiffGridStyle}"
                               ItemsSource="{Binding SelectedSheet.DisplayLeftRows}"
                               ScrollViewer.ScrollChanged="OnGridScrollChanged"
+                              PreviewMouseWheel="OnGridPreviewMouseWheel"
                               SelectedCellsChanged="OnSelectedCellsChanged" />
 
                     <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
@@ -269,6 +257,7 @@
                               Style="{StaticResource DiffGridStyle}"
                               ItemsSource="{Binding SelectedSheet.DisplayRightRows}"
                               ScrollViewer.ScrollChanged="OnGridScrollChanged"
+                              PreviewMouseWheel="OnGridPreviewMouseWheel"
                               SelectedCellsChanged="OnSelectedCellsChanged" />
                 </Grid>
 
@@ -304,7 +293,8 @@
                             <TextBlock Grid.Column="1" Text="変更後" FontWeight="Bold" Foreground="{DynamicResource Diff.Add.Fg}" />
                         </Grid>
                     </Border>
-                    <ScrollViewer x:Name="VbaLinesScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer x:Name="VbaLinesScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                  PreviewMouseWheel="OnVbaPreviewMouseWheel">
                         <ItemsControl x:Name="VbaLinesItems" ItemsSource="{Binding SelectedVbaModule.DisplayLines}"
                                       Grid.IsSharedSizeScope="True">
                             <ItemsControl.ItemTemplate>

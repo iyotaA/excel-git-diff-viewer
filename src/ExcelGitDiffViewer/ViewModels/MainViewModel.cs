@@ -42,6 +42,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _showAdded = true;
     private bool _showModified = true;
     private bool _showRemoved = true;
+    private bool _filterRows = true;
+    private bool _filterColumns = true;
 
     // 差分内検索 (A-2)
     private bool _isSearchBarVisible;
@@ -113,8 +115,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>シートタブ群。</summary>
+    /// <summary>シートタブ群（全件保持）。</summary>
     public ObservableCollection<SheetTabViewModel> Sheets { get; } = new();
+
+    /// <summary>タブに表示するシート（レビュー ON 時は差分ありのみ）。</summary>
+    public ObservableCollection<SheetTabViewModel> DisplaySheets { get; } = new();
 
     /// <summary>現在選択中のシート。</summary>
     public SheetTabViewModel? SelectedSheet
@@ -151,12 +156,52 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     module.IsReviewMode = value;
                 }
 
+                RebuildDisplaySheets();
+
+                // フィルタで選択中のシートが消えた場合は先頭に再選択する。
+                if (SelectedSheet == null || !DisplaySheets.Contains(SelectedSheet))
+                {
+                    SelectedSheet = DisplaySheets.Count > 0 ? DisplaySheets[0] : null;
+                }
+
                 RebuildDisplayVbaModules();
 
                 // フィルタで選択中のモジュールが消えた場合は先頭に再選択する。
                 if (SelectedVbaModule == null || !DisplayVbaModules.Contains(SelectedVbaModule))
                 {
                     SelectedVbaModule = DisplayVbaModules.Count > 0 ? DisplayVbaModules[0] : null;
+                }
+            }
+        }
+    }
+
+    /// <summary>差分のある行だけを表示するか（レビューモードの下位フィルタ、既定 ON）。全シートへ伝播する。</summary>
+    public bool FilterRows
+    {
+        get => _filterRows;
+        set
+        {
+            if (SetField(ref _filterRows, value))
+            {
+                foreach (var sheet in Sheets)
+                {
+                    sheet.FilterRows = value;
+                }
+            }
+        }
+    }
+
+    /// <summary>差分のある列だけを表示するか（レビューモードの下位フィルタ、既定 ON）。全シートへ伝播し、列は code-behind が再生成する。</summary>
+    public bool FilterColumns
+    {
+        get => _filterColumns;
+        set
+        {
+            if (SetField(ref _filterColumns, value))
+            {
+                foreach (var sheet in Sheets)
+                {
+                    sheet.FilterColumns = value;
                 }
             }
         }
@@ -544,19 +589,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void ShiftSelectedSheet(int delta)
     {
-        if (Sheets.Count == 0 || SelectedSheet == null)
+        if (DisplaySheets.Count == 0 || SelectedSheet == null)
         {
             return;
         }
 
-        int idx = Sheets.IndexOf(SelectedSheet);
+        int idx = DisplaySheets.IndexOf(SelectedSheet);
         int next = idx + delta;
-        if (next < 0 || next >= Sheets.Count)
+        if (next < 0 || next >= DisplaySheets.Count)
         {
             return;
         }
 
-        SelectedSheet = Sheets[next];
+        SelectedSheet = DisplaySheets[next];
     }
 
     /// <summary>VBA コードビューの前のモジュールへ切り替える。</summary>
@@ -597,6 +642,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// シートタブの表示コレクションを再構築する。レビュー ON 時は差分ありのみ、OFF 時は全件。
+    /// </summary>
+    private void RebuildDisplaySheets()
+    {
+        DisplaySheets.Clear();
+        foreach (var sheet in Sheets)
+        {
+            if (!_isReviewMode || sheet.HasDiff)
+            {
+                DisplaySheets.Add(sheet);
+            }
+        }
+    }
+
     /// <summary>バックグラウンドで計算した差分結果（UI スレッドへ受け渡す中間データ）。</summary>
     private sealed record LoadResult(
         IReadOnlyList<SheetDiffModel> Sheets,
@@ -633,12 +693,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             foreach (var diff in result.Sheets)
             {
-                var sheet = new SheetTabViewModel(diff) { IsReviewMode = _isReviewMode };
+                var sheet = new SheetTabViewModel(diff)
+                {
+                    IsReviewMode = _isReviewMode,
+                    FilterRows = _filterRows,
+                    FilterColumns = _filterColumns,
+                };
                 sheet.SetFilter(_showAdded, _showModified, _showRemoved);
                 Sheets.Add(sheet);
             }
 
-            SelectedSheet = Sheets.Count > 0 ? Sheets[0] : null;
+            RebuildDisplaySheets();
+            SelectedSheet = DisplaySheets.Count > 0 ? DisplaySheets[0] : null;
 
             foreach (var d in result.VbaModules)
             {

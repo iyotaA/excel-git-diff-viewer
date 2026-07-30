@@ -444,5 +444,8 @@
         <Setter Property="ColumnHeaderStyle" Value="{StaticResource DiffColumnHeaderStyle}" />
         <Setter Property="FontFamily" Value="Consolas, Yu Gothic UI, Meiryo" />
         <Setter Property="ColumnWidth" Value="SizeToCells" />
+        <!-- 左右で行位置をピクセル単位に揃えるため行高を固定する。セルは単一行
+             (TextTrimming=CharacterEllipsis) なので固定でも内容は欠けない。 -->
+        <Setter Property="RowHeight" Value="24" />
     </Style>
 </ResourceDictionary>
