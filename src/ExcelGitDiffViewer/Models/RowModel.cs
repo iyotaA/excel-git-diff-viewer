@@ -20,11 +20,19 @@ public sealed class RowModel
     /// <summary>列順に並んだセル群。</summary>
     public IReadOnlyList<CellModel> Cells { get; }
 
-    public RowModel(int alignedIndex, int? rowNumber, bool isGap, IReadOnlyList<CellModel> cells)
+    /// <summary>
+    /// この行を表示するのに要する行数（セル内改行の最大数＋1、最小 1）。
+    /// 行高の算出に使う。左右で行ピクセル高を一致させる必要があるため、
+    /// 対応する左右の RowModel には「改行の多い側」の同じ値を与える。
+    /// </summary>
+    public int DisplayLineCount { get; }
+
+    public RowModel(int alignedIndex, int? rowNumber, bool isGap, IReadOnlyList<CellModel> cells, int displayLineCount)
     {
         AlignedIndex = alignedIndex;
         RowNumber = rowNumber;
         IsGap = isGap;
         Cells = cells;
+        DisplayLineCount = displayLineCount < 1 ? 1 : displayLineCount;
     }
 }

@@ -287,14 +287,63 @@ public static class DiffEngine
                 gapCells[c] = new CellModel(r, c, string.Empty) { Diff = DiffKind.Gap };
             }
 
-            present.Add(new RowModel(r, r + 1, isGap: false, presentCells));
-            empty.Add(new RowModel(r, null, isGap: true, gapCells));
+            int lineCount = MaxLineCount(presentCells);
+            present.Add(new RowModel(r, r + 1, isGap: false, presentCells, lineCount));
+            empty.Add(new RowModel(r, null, isGap: true, gapCells, lineCount));
         }
 
         var status = isLeft ? SheetChangeStatus.Removed : SheetChangeStatus.Added;
         return isLeft
             ? new SheetDiffModel(sheet.Name, status, present, empty, colCount)
             : new SheetDiffModel(sheet.Name, status, empty, present, colCount);
+    }
+
+    /// <summary>
+    /// 行内セルの表示行数の最大値（セル内改行の最大数＋1、最小 1）。
+    /// <see cref="RowModel.DisplayLineCount"/> の算出に使う。
+    /// </summary>
+    private static int MaxLineCount(IReadOnlyList<CellModel> cells)
+    {
+        int max = 1;
+        foreach (var cell in cells)
+        {
+            int lines = LineCount(cell.Display);
+            if (lines > max)
+            {
+                max = lines;
+            }
+        }
+
+        return max;
+    }
+
+    /// <summary>文字列の行数。"\r\n" は 1 改行として数え、単独の "\r" も改行として扱う。</summary>
+    private static int LineCount(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 1;
+        }
+
+        int lines = 1;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char ch = text[i];
+            if (ch == '\n')
+            {
+                lines++;
+            }
+            else if (ch == '\r')
+            {
+                // "\r\n" は次の '\n' 側で数えるため、ここでは単独 '\r' のみ数える。
+                if (i + 1 >= text.Length || text[i + 1] != '\n')
+                {
+                    lines++;
+                }
+            }
+        }
+
+        return lines;
     }
 
     /// <summary>
@@ -341,8 +390,9 @@ public static class DiffEngine
                 rightCells[c] = new CellModel(rightRowIndex, c, rcs.Value, rcs.Formula) { Diff = kind };
             }
 
-            _leftRows.Add(new RowModel(idx, leftRowIndex + 1, isGap: false, leftCells));
-            _rightRows.Add(new RowModel(idx, rightRowIndex + 1, isGap: false, rightCells));
+            int lineCount = System.Math.Max(MaxLineCount(leftCells), MaxLineCount(rightCells));
+            _leftRows.Add(new RowModel(idx, leftRowIndex + 1, isGap: false, leftCells, lineCount));
+            _rightRows.Add(new RowModel(idx, rightRowIndex + 1, isGap: false, rightCells, lineCount));
             return changed;
         }
 
@@ -362,8 +412,9 @@ public static class DiffEngine
                 gapCells[c] = new CellModel(leftRowIndex, c, string.Empty) { Diff = DiffKind.Gap };
             }
 
-            _leftRows.Add(new RowModel(idx, leftRowIndex + 1, isGap: false, leftCells));
-            _rightRows.Add(new RowModel(idx, null, isGap: true, gapCells));
+            int lineCount = MaxLineCount(leftCells);
+            _leftRows.Add(new RowModel(idx, leftRowIndex + 1, isGap: false, leftCells, lineCount));
+            _rightRows.Add(new RowModel(idx, null, isGap: true, gapCells, lineCount));
         }
 
         /// <summary>右のみ存在（挿入行）。左はギャップ。</summary>
@@ -382,8 +433,9 @@ public static class DiffEngine
                 };
             }
 
-            _leftRows.Add(new RowModel(idx, null, isGap: true, gapCells));
-            _rightRows.Add(new RowModel(idx, rightRowIndex + 1, isGap: false, rightCells));
+            int lineCount = MaxLineCount(rightCells);
+            _leftRows.Add(new RowModel(idx, null, isGap: true, gapCells, lineCount));
+            _rightRows.Add(new RowModel(idx, rightRowIndex + 1, isGap: false, rightCells, lineCount));
         }
 
         private static DiffKind Classify(in CellSource left, in CellSource right)

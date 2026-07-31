@@ -1,10 +1,14 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:conv="clr-namespace:ExcelGitDiffViewer.Converters">
     <!--
         コントロールの外観（Style / ControlTemplate）を集約する。色は必ず DynamicResource で
         Colors.Dark.xaml のトークンを参照し、この辞書自体は配色に依存しない。
         StaticResource で他 Style を参照する箇所があるため、被参照 Style を先に定義する。
     -->
+
+    <!-- 行数 → 行高(px) 変換。差分グリッドの RowStyle(MinHeight) から参照する。 -->
+    <conv:LineCountToRowHeightConverter x:Key="LineCountToRowHeight" />
 
     <!-- ============ Window（地色・既定文字色・フォント） ============ -->
     <!-- 暗黙スタイル（TargetType のみ）は WPF では型が完全一致する要素にしか適用されず、
@@ -444,8 +448,16 @@
         <Setter Property="ColumnHeaderStyle" Value="{StaticResource DiffColumnHeaderStyle}" />
         <Setter Property="FontFamily" Value="Consolas, Yu Gothic UI, Meiryo" />
         <Setter Property="ColumnWidth" Value="SizeToCells" />
-        <!-- 左右で行位置をピクセル単位に揃えるため行高を固定する。セルは単一行
-             (TextTrimming=CharacterEllipsis) なので固定でも内容は欠けない。 -->
-        <Setter Property="RowHeight" Value="24" />
+        <!-- 行高は固定せず、左右ペアで「改行の多い側」に合わせた MinHeight を行ごとに与える。
+             DisplayLineCount は左右同値なので各行のピクセル高が左右一致し、スクロールの
+             ピクセル同期(OnGridScrollChanged)を保ったまま複数行セルの差分が隠れなくなる。 -->
+        <Setter Property="RowStyle">
+            <Setter.Value>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="MinHeight"
+                            Value="{Binding DisplayLineCount, Converter={StaticResource LineCountToRowHeight}}" />
+                </Style>
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>
