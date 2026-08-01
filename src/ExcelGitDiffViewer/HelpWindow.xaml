@@ -130,6 +130,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
@@ -191,6 +193,16 @@
                         <TextBlock Text="Esc" Style="{StaticResource KeyText}" />
                     </Border>
                     <TextBlock Grid.Row="11" Grid.Column="1" Text="検索バーを閉じる" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="12" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="Shift + ホイール" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="12" Grid.Column="1" Text="表 / コードを横スクロール" Style="{StaticResource OpText}" Margin="12,0,0,6" />
+
+                    <Border Grid.Row="13" Grid.Column="0" Style="{StaticResource KeyChip}" Margin="0,0,0,6">
+                        <TextBlock Text="サイドボタン + ホイール" Style="{StaticResource KeyText}" />
+                    </Border>
+                    <TextBlock Grid.Row="13" Grid.Column="1" Text="表 / コードを横スクロール（マウスのみで操作）" Style="{StaticResource OpText}" Margin="12,0,0,6" />
                 </Grid>
                 </ScrollViewer>
             </TabItem>
@@ -226,6 +238,11 @@
                 <TextBlock Text="6. テーマ切替" Style="{StaticResource BodyLabel}" />
                 <TextBlock Style="{StaticResource Body}">
                     ツールバー左上の「🌙 / ☀」ボタンでダーク / ライトを切り替えます。選択は次回起動時にも引き継がれます。
+                </TextBlock>
+
+                <TextBlock Text="7. 左右ペインのスクロールと幅調整" Style="{StaticResource BodyLabel}" />
+                <TextBlock Style="{StaticResource Body}">
+                    データ・数式ビューと VBA コードビューはどちらも変更前・変更後が中央で区切られ、それぞれ独立したスクロールバーを持ちます。片側を動かすともう片側も同じ行・同じ桁位置に追従します。中央の区切りをドラッグすると左右の幅を変えられます。横方向は Shift + ホイール、またはマウスのサイドボタンを押しながらホイールでスクロールできます。
                 </TextBlock>
                 </StackPanel>
                 </ScrollViewer>

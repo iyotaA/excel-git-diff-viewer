@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:ExcelGitDiffViewer.Converters"
         xmlns:local="clr-namespace:ExcelGitDiffViewer"
+        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         xmlns:vm="clr-namespace:ExcelGitDiffViewer.ViewModels"
         Title="Excel Git Diff Viewer" Height="720" Width="1180"
         Icon="/Assets/app.ico"
@@ -12,6 +13,57 @@
     <Window.Resources>
         <conv:DiffKindToBrushConverter x:Key="DiffBrush" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!--
+            VBA コード行の固定行高(px)。変更前・変更後を別 ScrollViewer に分けたため、行 N の高さが
+            左右で 1px でもずれると縦スクロール同期が累積的に破綻する。Consolas には CJK 字形が無く、
+            日本語コメント行はフォントフォールバックで行送りが約 1.41em まで伸びる一方、ASCII のみの
+            行は Consolas の約 1.17em で収まるため、放置すると片側だけ背が高くなる。
+              12px × 1.41 ≒ 16.9px → 余裕を見て 18px で固定する。
+            MinHeight ではフォールバック行がそれを超えて伸びてしまうため必ず Height で固定すること。
+            FontSize は既定値の継承だと OS のテキスト拡大設定で動くので明示指定し、
+            Vba.CodeFontSize を変えるときは Vba.LineHeight も必ず一緒に見直す。
+        -->
+        <sys:Double x:Key="Vba.CodeFontSize">12</sys:Double>
+        <sys:Double x:Key="Vba.LineHeight">18</sys:Double>
+
+        <!-- 変更前ペインの1行。VbaLineRow の Left* だけを描画する（同じ行オブジェクトを右ペインと共有）。 -->
+        <DataTemplate x:Key="VbaLeftLineTemplate">
+            <Grid Height="{StaticResource Vba.LineHeight}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="38" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="VbaLeftCode" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding LeftNumberDisplay}"
+                           Foreground="{DynamicResource Grid.RowNumberFg}" TextAlignment="Right"
+                           FontFamily="Consolas" FontSize="{StaticResource Vba.CodeFontSize}"
+                           VerticalAlignment="Center" Padding="0,0,6,0" />
+                <Border Grid.Column="1" Background="{Binding LeftKind, Converter={StaticResource DiffBrush}}">
+                    <TextBlock Text="{Binding LeftText}" FontFamily="Consolas"
+                               FontSize="{StaticResource Vba.CodeFontSize}"
+                               VerticalAlignment="Center" TextWrapping="NoWrap" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <!-- 変更後ペインの1行。構造は左テンプレートと同一で、Right* にバインドする。 -->
+        <DataTemplate x:Key="VbaRightLineTemplate">
+            <Grid Height="{StaticResource Vba.LineHeight}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="38" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="VbaRightCode" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding RightNumberDisplay}"
+                           Foreground="{DynamicResource Grid.RowNumberFg}" TextAlignment="Right"
+                           FontFamily="Consolas" FontSize="{StaticResource Vba.CodeFontSize}"
+                           VerticalAlignment="Center" Padding="0,0,6,0" />
+                <Border Grid.Column="1" Background="{Binding RightKind, Converter={StaticResource DiffBrush}}">
+                    <TextBlock Text="{Binding RightText}" FontFamily="Consolas"
+                               FontSize="{StaticResource Vba.CodeFontSize}"
+                               VerticalAlignment="Center" TextWrapping="NoWrap" />
+                </Border>
+            </Grid>
+        </DataTemplate>
     </Window.Resources>
 
     <!-- キーボードショートカット (A-1)。DataGrid のセル操作より Window レベルの入力が優先される。 -->
@@ -281,56 +333,54 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <!-- 選択モジュールの行差分 -->
-                <DockPanel Grid.Column="1">
-                    <Border DockPanel.Dock="Top" Background="{DynamicResource Bg.Surface}" Padding="8,4">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="変更前" FontWeight="Bold" Foreground="{DynamicResource Diff.Del.Fg}" />
-                            <TextBlock Grid.Column="1" Text="変更後" FontWeight="Bold" Foreground="{DynamicResource Diff.Add.Fg}" />
-                        </Grid>
-                    </Border>
-                    <ScrollViewer x:Name="VbaLinesScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                                  PreviewMouseWheel="OnVbaPreviewMouseWheel">
-                        <ItemsControl x:Name="VbaLinesItems" ItemsSource="{Binding SelectedVbaModule.DisplayLines}"
-                                      Grid.IsSharedSizeScope="True">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="38" />
-                                            <ColumnDefinition Width="Auto" SharedSizeGroup="VbaLeftCode" />
-                                            <ColumnDefinition Width="10" />
-                                            <ColumnDefinition Width="38" />
-                                            <ColumnDefinition Width="Auto" SharedSizeGroup="VbaRightCode" />
-                                        </Grid.ColumnDefinitions>
+                <!--
+                    選択モジュールの行差分。データ・数式ビュー（上の LeftGrid / RightGrid）と同じく
+                    GridSplitter で左右に分割し、各ペインが独立した縦横スクロールバーを持つ。
+                    以前は 1 つの ScrollViewer が左右両方を包んでおり、コード列（Auto + SharedSizeGroup）が
+                    変更前の最長行まで広がって変更後を画面外へ押し出していた。
+                    ペインごとに共有サイズスコープを分けることで、左の行長が右の幅に影響しなくなる。
+                -->
+                <Grid Grid.Column="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                    </Grid.ColumnDefinitions>
 
-                                        <TextBlock Grid.Column="0" Text="{Binding LeftNumberDisplay}"
-                                                   Foreground="{DynamicResource Grid.RowNumberFg}" TextAlignment="Right"
-                                                   FontFamily="Consolas" Padding="0,0,6,0" />
-                                        <Border Grid.Column="1"
-                                                Background="{Binding LeftKind, Converter={StaticResource DiffBrush}}">
-                                            <TextBlock Text="{Binding LeftText}" FontFamily="Consolas"
-                                                       TextWrapping="NoWrap" />
-                                        </Border>
+                    <DockPanel Grid.Column="0">
+                        <!-- 見出しはペイン内に固定する。左右の Border は Padding・FontWeight まで同一構造に
+                             保つこと（高さが違うと両ペインの1行目の Y がずれて行が揃わなくなる）。 -->
+                        <Border DockPanel.Dock="Top" Background="{DynamicResource Bg.Surface}" Padding="8,4">
+                            <TextBlock Text="変更前" FontWeight="Bold" Foreground="{DynamicResource Diff.Del.Fg}" />
+                        </Border>
+                        <!-- 横バーは Auto ではなく Visible。片側だけバーが出るとビューポート高が約 12px ずれ、
+                             最下部で左右の行が食い違う。縦バーは左右の Extent が同一（同じ行数 × 同じ行高）
+                             なので Auto でも同時に出入りし、ずれない。 -->
+                        <ScrollViewer x:Name="VbaLeftScroll"
+                                      HorizontalScrollBarVisibility="Visible" VerticalScrollBarVisibility="Auto"
+                                      ScrollChanged="OnVbaScrollChanged" PreviewMouseWheel="OnVbaPreviewMouseWheel">
+                            <ItemsControl x:Name="VbaLeftItems" Grid.IsSharedSizeScope="True"
+                                          ItemsSource="{Binding SelectedVbaModule.DisplayLines}"
+                                          ItemTemplate="{StaticResource VbaLeftLineTemplate}" />
+                        </ScrollViewer>
+                    </DockPanel>
 
-                                        <TextBlock Grid.Column="3" Text="{Binding RightNumberDisplay}"
-                                                   Foreground="{DynamicResource Grid.RowNumberFg}" TextAlignment="Right"
-                                                   FontFamily="Consolas" Padding="0,0,6,0" />
-                                        <Border Grid.Column="4"
-                                                Background="{Binding RightKind, Converter={StaticResource DiffBrush}}">
-                                            <TextBlock Text="{Binding RightText}" FontFamily="Consolas"
-                                                       TextWrapping="NoWrap" />
-                                        </Border>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </DockPanel>
+                    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                                  Background="{DynamicResource Border.Strong}" />
+
+                    <DockPanel Grid.Column="2">
+                        <Border DockPanel.Dock="Top" Background="{DynamicResource Bg.Surface}" Padding="8,4">
+                            <TextBlock Text="変更後" FontWeight="Bold" Foreground="{DynamicResource Diff.Add.Fg}" />
+                        </Border>
+                        <ScrollViewer x:Name="VbaRightScroll"
+                                      HorizontalScrollBarVisibility="Visible" VerticalScrollBarVisibility="Auto"
+                                      ScrollChanged="OnVbaScrollChanged" PreviewMouseWheel="OnVbaPreviewMouseWheel">
+                            <ItemsControl x:Name="VbaRightItems" Grid.IsSharedSizeScope="True"
+                                          ItemsSource="{Binding SelectedVbaModule.DisplayLines}"
+                                          ItemTemplate="{StaticResource VbaRightLineTemplate}" />
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
             </Grid>
 
             <!-- エラー表示 -->

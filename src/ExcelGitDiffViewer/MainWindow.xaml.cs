@@ -35,10 +35,21 @@ public partial class MainWindow : Window
     private readonly DiffKindToBrushConverter _brushConverter = new();
     private readonly BooleanToVisibilityConverter _boolToVis = new();
 
+    /// <summary>
+    /// VBA コードビューの左右ペインで横スクロールも同期するか。
+    /// false にすると縦だけ同期して横は各ペイン独立になる（切替はこの 1 行のみ）。
+    /// 現状はデータ・数式ビューの挙動に合わせて縦横とも同期する。
+    /// </summary>
+    private static readonly bool SyncVbaHorizontal = true;
+
+    /// <summary>VBA コード 1 行の固定行高を引く <see cref="Window.Resources"/> のキー。</summary>
+    private const string VbaLineHeightKey = "Vba.LineHeight";
+
     private MainViewModel? _viewModel;
     private ScrollViewer? _leftScroll;
     private ScrollViewer? _rightScroll;
     private bool _syncing;
+    private bool _vbaSyncing;
     private int _vbaCurrentIndex = -1;
 
     // 列テンプレートのキャッシュ（列インデックス単位）。テンプレートはグリッド非依存なので両グリッド・両モードで再利用する。
@@ -88,6 +99,19 @@ public partial class MainWindow : Window
         {
             // レビュー切替・列フィルタ切替で表示列集合が変わりうる。ガード付き RebuildColumns で必要時のみ再生成する。
             RebuildColumns();
+
+            // レビュー切替では VBA の DisplayLines も入れ替わるため、行位置を先頭へ戻す。
+            if (e.PropertyName == nameof(MainViewModel.IsReviewMode))
+            {
+                ResetVbaCurrentLine();
+            }
+        }
+        else if (e.PropertyName is nameof(MainViewModel.ShowAdded)
+                 or nameof(MainViewModel.ShowModified)
+                 or nameof(MainViewModel.ShowRemoved))
+        {
+            // 差分種別フィルタでも VBA の DisplayLines が入れ替わる。
+            ResetVbaCurrentLine();
         }
         else if (e.PropertyName == nameof(MainViewModel.CurrentView) && _viewModel?.IsDataView != true)
         {
@@ -95,7 +119,7 @@ public partial class MainWindow : Window
         }
         else if (e.PropertyName == nameof(MainViewModel.SelectedVbaModule))
         {
-            _vbaCurrentIndex = -1;
+            ResetVbaCurrentLine();
         }
         else if (e.PropertyName == nameof(MainViewModel.CurrentMatch))
         {
@@ -492,17 +516,42 @@ public partial class MainWindow : Window
             _vbaCurrentIndex = i;
             var target = i;
             Dispatcher.BeginInvoke(
-                new System.Action(() =>
-                {
-                    if (VbaLinesItems.ItemContainerGenerator.ContainerFromIndex(target)
-                        is FrameworkElement container)
-                    {
-                        container.BringIntoView();
-                    }
-                }),
+                new System.Action(() => ScrollVbaToIndex(target)),
                 System.Windows.Threading.DispatcherPriority.Background);
             break;
         }
+    }
+
+    /// <summary>
+    /// VBA 変更前ペインを指定行が見える位置までスクロールする（変更後ペインは
+    /// <see cref="OnVbaScrollChanged"/> が追従する）。
+    /// 行高が Vba.LineHeight で固定なのでコンテナ生成を待たずにオフセットを直接計算でき、
+    /// BringIntoView と違って行全幅（= そのペインの最長行）を収めようとして横位置が巻き戻ることもない。
+    /// </summary>
+    private void ScrollVbaToIndex(int index)
+    {
+        double rowHeight = (double)FindResource(VbaLineHeightKey);
+        double top = index * rowHeight;
+        double bottom = top + rowHeight;
+
+        if (top < VbaLeftScroll.VerticalOffset)
+        {
+            VbaLeftScroll.ScrollToVerticalOffset(top);
+        }
+        else if (bottom > VbaLeftScroll.VerticalOffset + VbaLeftScroll.ViewportHeight)
+        {
+            VbaLeftScroll.ScrollToVerticalOffset(bottom - VbaLeftScroll.ViewportHeight);
+        }
+    }
+
+    /// <summary>VBA の表示行が入れ替わったとき、現在行と左右ペインのスクロール位置を先頭へ戻す。</summary>
+    private void ResetVbaCurrentLine()
+    {
+        _vbaCurrentIndex = -1;
+        VbaLeftScroll.ScrollToTop();
+        VbaLeftScroll.ScrollToLeftEnd();
+        VbaRightScroll.ScrollToTop();
+        VbaRightScroll.ScrollToLeftEnd();
     }
 
     /// <summary>
@@ -789,14 +838,71 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Shift+マウスホイールで左右 DataGrid を横スクロールする（Excel 同様の操作感）。
+    /// VBA コードビューの左右ペインのスクロールを相互同期する。
+    /// 行高が Vba.LineHeight で左右固定なので、縦オフセットをそのまま写すだけで行が一致する。
+    /// DataGrid 側（<see cref="OnGridScrollChanged"/>）とは再入ガードを分けて相互干渉させない。
+    /// </summary>
+    private void OnVbaScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_vbaSyncing || sender is not ScrollViewer source)
+        {
+            return;
+        }
+
+        ScrollViewer target;
+        if (ReferenceEquals(source, VbaLeftScroll))
+        {
+            target = VbaRightScroll;
+        }
+        else if (ReferenceEquals(source, VbaRightScroll))
+        {
+            target = VbaLeftScroll;
+        }
+        else
+        {
+            return;
+        }
+
+        _vbaSyncing = true;
+        try
+        {
+            if (e.VerticalChange != 0)
+            {
+                target.ScrollToVerticalOffset(source.VerticalOffset);
+            }
+
+            // 左右で ExtentWidth が異なっても ScrollToHorizontalOffset が自動でクランプする。
+            if (SyncVbaHorizontal && e.HorizontalChange != 0)
+            {
+                target.ScrollToHorizontalOffset(source.HorizontalOffset);
+            }
+        }
+        finally
+        {
+            _vbaSyncing = false;
+        }
+    }
+
+    /// <summary>
+    /// 横スクロール操作かどうかを判定する。
+    /// Shift 押下（Excel 同様の操作感）に加え、マウスのサイドボタン（戻る / 進む）押下中も横スクロール扱いにする。
+    /// <see cref="MouseEventArgs.XButton1"/> / <see cref="MouseEventArgs.XButton2"/> はイベント発生時点の
+    /// 実ボタン状態を返すため、押下 / 解放を別途追跡する必要はない。
+    /// </summary>
+    private static bool IsHorizontalScrollGesture(MouseEventArgs e)
+        => (Keyboard.Modifiers & ModifierKeys.Shift) != 0
+           || e.XButton1 == MouseButtonState.Pressed
+           || e.XButton2 == MouseButtonState.Pressed;
+
+    /// <summary>
+    /// Shift またはマウスサイドボタン + ホイールで左右 DataGrid を横スクロールする。
     /// 横方向の左右同期は既存の <see cref="OnGridScrollChanged"/> が HorizontalChange 経由で自動的に行う。
     /// </summary>
     private void OnGridPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0 || sender is not DataGrid grid)
+        if (!IsHorizontalScrollGesture(e) || sender is not DataGrid grid)
         {
-            return; // Shift 非押下時は既定の縦スクロールに委ねる。
+            return; // 横スクロール操作でなければ既定の縦スクロールに委ねる。
         }
 
         var sv = ReferenceEquals(grid, LeftGrid)
@@ -811,15 +917,18 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>Shift+マウスホイールで VBA コードビューを横スクロールする。</summary>
+    /// <summary>
+    /// Shift またはマウスサイドボタン + ホイールで VBA コードビューを横スクロールする（sender からペインを判定）。
+    /// 修飾なしの縦ホイールは ScrollViewer の既定処理に委ね、反対側は <see cref="OnVbaScrollChanged"/> が追従する。
+    /// </summary>
     private void OnVbaPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        if (!IsHorizontalScrollGesture(e) || sender is not ScrollViewer sv)
         {
             return;
         }
 
-        VbaLinesScroll.ScrollToHorizontalOffset(VbaLinesScroll.HorizontalOffset - e.Delta);
+        sv.ScrollToHorizontalOffset(sv.HorizontalOffset - e.Delta); // ホイール上 → 左へ。
         e.Handled = true;
     }
 
